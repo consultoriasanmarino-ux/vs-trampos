@@ -15,7 +15,8 @@ import {
     Zap,
     CreditCard,
     Menu,
-    X
+    X,
+    Settings
 } from 'lucide-react'
 import { supabase, Banco } from '@/lib/supabase'
 import { BankThemeProvider, useBankTheme } from '@/lib/bank-theme'
@@ -27,6 +28,7 @@ const navItems = [
     { href: '/admin/fichas', icon: CreditCard, label: 'Fichas' },
     { href: '/admin/ligadores', icon: UserCog, label: 'Ligadores' },
     { href: '/admin/whatsapp', icon: MessageCircle, label: 'WhatsApp' },
+    { href: '/admin/configuracoes', icon: Settings, label: 'Configurações' },
 ]
 
 function AdminContent({ children }: { children: React.ReactNode }) {
