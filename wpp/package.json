@@ -1,0 +1,15 @@
+{
+  "name": "vs-trampos-baileys",
+  "version": "1.0.0",
+  "description": "WhatsApp Baileys server for VS Trampos",
+  "scripts": {
+    "start": "node wpp_baileys.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.16",
+    "@supabase/supabase-js": "^2.49.4",
+    "qrcode": "^1.5.4",
+    "pino": "^9.6.0",
+    "dotenv": "^16.4.7"
+  }
+}
