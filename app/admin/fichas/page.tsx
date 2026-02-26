@@ -99,6 +99,15 @@ export default function FichasAdminPage() {
         return lig?.nome || null
     }
 
+    const WppLogo = ({ size = 16, className = "" }: { size?: number, className?: string }) => (
+        <div className={`shrink-0 flex items-center justify-center ${className}`} style={{ width: size, height: size }}>
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full drop-shadow-[0_2px_4px_rgba(37,211,102,0.4)]">
+                <circle cx="12" cy="12" r="12" fill="#25D366" />
+                <path d="M17.5028 14.0355C17.202 13.8823 15.7281 13.1538 15.4542 13.0526C15.1788 12.9529 14.9789 12.9031 14.7789 13.2045C14.5789 13.5044 14.0044 14.1793 13.8291 14.3792C13.6548 14.5792 13.4795 14.6041 13.1788 14.4542C12.878 14.3028 11.9105 13.9856 10.7621 12.9599C9.87062 12.1627 9.27063 11.1785 9.09688 10.877C8.92163 10.577 9.07788 10.4143 9.22738 10.2649C9.36225 10.1303 9.52762 9.91425 9.67762 9.73888C9.82762 9.56463 9.87788 9.4395 9.97725 9.23963C10.0778 9.03975 10.0275 8.864 9.95288 8.7145C9.87788 8.5635 9.27825 7.08788 9.02888 6.48675C8.78438 5.89988 8.54063 5.97938 8.35463 5.96963C8.18025 5.96025 7.97963 5.96025 7.77975 5.96025C7.57913 5.96025 7.25438 6.03563 6.97913 6.3355C6.70425 6.63538 5.92875 7.36163 5.92875 8.83838C5.92875 10.3151 7.00425 11.7416 7.15425 11.9415C7.30425 12.1414 9.26625 15.1718 12.2798 16.4726C12.996 16.7846 13.5532 16.971 13.9894 17.1086C14.7067 17.3366 15.3585 17.3044 15.8745 17.2279C16.4505 17.1424 17.65 16.5023 17.9 15.801C18.1504 15.0998 18.1504 14.4994 18.0754 14.3734C18.0004 14.2483 17.8024 14.1738 17.5028 14.0355Z" fill="white" />
+            </svg>
+        </div>
+    )
+
     const statusBadge = (status: string | null, telefone: string | null) => {
         if (!status && telefone) {
             return (
@@ -110,8 +119,8 @@ export default function FichasAdminPage() {
         switch (status) {
             case 'ativo':
                 return (
-                    <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg text-[10px] font-bold border border-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
-                        <Smartphone size={12} /> WHATSAPP
+                    <span className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg text-[10px] font-black border border-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.1)]">
+                        <WppLogo size={14} /> WHATSAPP
                     </span>
                 )
             case 'fixo':
@@ -374,7 +383,7 @@ export default function FichasAdminPage() {
                                                         <div className="flex items-center gap-4">
                                                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border border-white/5 transition-colors ${hasWA ? 'bg-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'bg-gray-950'}`}>
                                                                 {hasWA ? (
-                                                                    <MessageCircle size={18} className="text-emerald-500" />
+                                                                    <WppLogo size={18} />
                                                                 ) : hasFix ? (
                                                                     <Phone size={16} className="text-amber-500" />
                                                                 ) : hasInv ? (
@@ -387,7 +396,10 @@ export default function FichasAdminPage() {
                                                                 <div className="flex items-center gap-2 mb-0.5">
                                                                     <p className="text-[9px] font-black text-gray-700 uppercase tracking-tighter">Telefone {idx + 1}</p>
                                                                     {hasWA && (
-                                                                        <span className="text-[8px] font-black bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full uppercase tracking-tighter border border-emerald-500/20">WPP ATIVO</span>
+                                                                        <div className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                                                                            <WppLogo size={8} />
+                                                                            <span className="text-[8px] font-black text-emerald-400 uppercase tracking-tighter">WPP ATIVO</span>
+                                                                        </div>
                                                                     )}
                                                                 </div>
                                                                 <p className="text-sm font-mono font-black text-gray-400 tracking-wider group-hover/phone:text-white transition-colors">{telNumber}</p>
