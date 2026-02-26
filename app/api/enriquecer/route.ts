@@ -1,19 +1,80 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
-// Simula validação de WhatsApp
-function classificarTelefone(telefone: string): 'ativo' | 'fixo' | 'invalido' {
-    const limpo = telefone.replace(/\D/g, '')
-
-    if (limpo.length < 10) return 'invalido'
-
-    // Celular: DDD + 9 + 8 dígitos (11 dígitos total)
-    if (limpo.length === 11 && limpo[2] === '9') return 'ativo'
-
-    // Fixo: DDD + 8 dígitos (10 dígitos)
-    if (limpo.length === 10) return 'fixo'
-
+// Classifica se é celular (WhatsApp provável), fixo ou inválido
+function classificarTelefone(tel: string): 'ativo' | 'fixo' | 'invalido' {
+    const limpo = tel.replace(/\D/g, '')
+    if (limpo.length >= 11 && limpo.charAt(2) === '9') return 'ativo'
+    if (limpo.length >= 10) return 'fixo'
     return 'invalido'
+}
+
+// Parser do formato Leads_completos.txt
+function parseTxtLeads(text: string) {
+    const blocos = text.split(/^-{10,}$/m)
+    const leads: any[] = []
+
+    for (const bloco of blocos) {
+        const lines = bloco.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+        if (lines.length === 0) continue
+
+        const lead: any = {}
+
+        for (const line of lines) {
+            if (line.startsWith('NOME:')) {
+                lead.nome = line.replace('NOME:', '').trim()
+            } else if (line.startsWith('CPF:')) {
+                lead.cpf = line.replace('CPF:', '').trim().replace(/[.\-\s]/g, '')
+            } else if (line.startsWith('NASC:')) {
+                lead.data_nascimento = line.replace('NASC:', '').trim()
+            } else if (line.startsWith('RENDA:')) {
+                // Formato: "RENDA: 581,90 | SCORE: N/A"
+                const parts = line.replace('RENDA:', '').trim()
+                const rendaPart = parts.split('|')[0]?.trim()
+                const scorePart = parts.split('SCORE:')[1]?.trim()
+
+                if (rendaPart && rendaPart !== 'N/A') {
+                    const rendaNum = parseFloat(rendaPart.replace(/\./g, '').replace(',', '.'))
+                    if (!isNaN(rendaNum)) lead.renda = rendaNum
+                }
+
+                if (scorePart && scorePart !== 'N/A') {
+                    const scoreNum = parseInt(scorePart)
+                    if (!isNaN(scoreNum)) lead.score = scoreNum
+                }
+            } else if (line.startsWith('CELULARES:') || line.startsWith('TELEFONES:')) {
+                const telsStr = line.replace(/^(CELULARES|TELEFONES):/, '').trim()
+                if (telsStr && telsStr !== 'Nenhum' && telsStr !== 'N/A') {
+                    // Pega o primeiro telefone
+                    const primeiro = telsStr.split(',')[0].trim()
+                    lead.telefone = primeiro
+                }
+            }
+        }
+
+        if (lead.cpf) {
+            leads.push(lead)
+        }
+    }
+
+    return leads
+}
+
+// Parser CSV
+function parseCsv(text: string) {
+    const lines = text.split(/\r?\n/).filter(l => l.trim())
+    if (lines.length < 2) return []
+
+    const headerLine = lines[0].toLowerCase()
+    const separator = headerLine.includes(';') ? ';' : ','
+    const headers = headerLine.split(separator).map(h => h.trim().replace(/"/g, ''))
+
+    return lines.slice(1).map(line => {
+        const values = line.split(separator).map(v => v.trim().replace(/"/g, ''))
+        const obj: any = {}
+        headers.forEach((h, i) => { obj[h] = values[i] || '' })
+        return obj
+    })
 }
 
 export async function POST(request: NextRequest) {
@@ -26,51 +87,58 @@ export async function POST(request: NextRequest) {
         }
 
         const text = await file.text()
+        const fileName = file.name.toLowerCase()
+
         let leads: any[] = []
 
-        // Detecta formato
-        const fileName = file.name.toLowerCase()
+        // Detectar formato
         if (fileName.endsWith('.json')) {
             leads = JSON.parse(text)
-        } else if (fileName.endsWith('.csv') || fileName.endsWith('.txt')) {
-            const lines = text.split(/\r?\n/).filter(l => l.trim())
-            if (lines.length < 2) {
-                return NextResponse.json({ error: 'Arquivo sem dados suficientes.' }, { status: 400 })
+            if (!Array.isArray(leads)) leads = [leads]
+        } else if (fileName.endsWith('.csv')) {
+            leads = parseCsv(text)
+        } else {
+            // TXT - pode ser CSV ou formato de blocos (Leads_completos)
+            if (text.includes('NOME:') && text.includes('CPF:')) {
+                // Formato Leads_completos.txt
+                leads = parseTxtLeads(text)
+            } else if (text.includes(',') || text.includes(';')) {
+                // Tentar como CSV
+                leads = parseCsv(text)
+            } else {
+                return NextResponse.json({ error: 'Formato de arquivo não reconhecido.' }, { status: 400 })
             }
+        }
 
-            // Detecta separador
-            const sep = lines[0].includes(';') ? ';' : ','
-            const headers = lines[0].split(sep).map(h => h.trim().toLowerCase())
-
-            for (let i = 1; i < lines.length; i++) {
-                const cols = lines[i].split(sep)
-                const obj: any = {}
-                headers.forEach((h, idx) => {
-                    obj[h] = cols[idx]?.trim() || null
-                })
-                leads.push(obj)
-            }
+        if (leads.length === 0) {
+            return NextResponse.json({ error: 'Nenhum lead encontrado no arquivo.' }, { status: 400 })
         }
 
         let atualizados = 0
         let erros = 0
 
         for (const lead of leads) {
-            const cpf = lead.cpf?.replace(/[.\-\s]/g, '')
-            if (!cpf) { erros++; continue }
+            const cpf = (lead.cpf || '').toString().replace(/[.\-\s]/g, '')
+            if (!cpf || cpf.length !== 11) {
+                erros++
+                continue
+            }
 
             const updateData: any = {}
             if (lead.nome) updateData.nome = lead.nome
             if (lead.data_nascimento) updateData.data_nascimento = lead.data_nascimento
-            if (lead.idade) updateData.data_nascimento = lead.idade // aceita campo "idade" como alias
-            if (lead.renda) updateData.renda = parseFloat(lead.renda) || null
-            if (lead.score) updateData.score = parseInt(lead.score) || null
+            if (lead.renda) updateData.renda = lead.renda
+            if (lead.score) updateData.score = lead.score
 
-            // Classificar telefone (simula Baileys)
-            if (lead.telefone || lead.telefones || lead.celular) {
-                const tel = lead.telefone || lead.telefones || lead.celular
-                updateData.telefone = tel
-                updateData.status_whatsapp = classificarTelefone(tel)
+            if (lead.telefone) {
+                updateData.telefone = lead.telefone
+                updateData.status_whatsapp = classificarTelefone(lead.telefone)
+            }
+
+            // Só atualiza se tem algo pra atualizar
+            if (Object.keys(updateData).length === 0) {
+                erros++
+                continue
             }
 
             const { error } = await supabase
@@ -87,12 +155,13 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            message: `${atualizados} leads atualizados. ${erros} erros.`,
+            message: `${atualizados} lead(s) enriquecido(s). ${erros > 0 ? `${erros} ignorado(s).` : ''}`,
+            total: leads.length,
             atualizados,
             erros,
         })
-    } catch (err) {
-        console.error('Erro enriquecer:', err)
-        return NextResponse.json({ error: 'Erro interno no servidor.' }, { status: 500 })
+    } catch (err: any) {
+        console.error('Erro no enriquecimento:', err)
+        return NextResponse.json({ error: `Erro interno: ${err?.message || 'desconhecido'}` }, { status: 500 })
     }
 }

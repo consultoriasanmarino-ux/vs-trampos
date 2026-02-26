@@ -264,7 +264,7 @@ export default function AdminDashboard() {
                         </div>
                         <div>
                             <h2 className="text-base font-semibold text-white">Enriquecer Leads</h2>
-                            <p className="text-xs text-gray-600">CSV/JSON com Nome, Renda, Score, Telefone</p>
+                            <p className="text-xs text-gray-600">TXT (Leads_completos), CSV ou JSON</p>
                         </div>
                     </div>
 
@@ -294,12 +294,13 @@ export default function AdminDashboard() {
                         </div>
 
                         <div className="glass rounded-xl p-3">
-                            <p className="text-[9px] text-gray-600 uppercase tracking-wider font-bold mb-2">Colunas Esperadas</p>
+                            <p className="text-[9px] text-gray-600 uppercase tracking-wider font-bold mb-2">Formatos Aceitos</p>
                             <div className="flex flex-wrap gap-1.5">
-                                {['cpf', 'nome', 'renda', 'score', 'telefone'].map(col => (
+                                {['Leads_completos.txt', '.csv', '.json'].map(col => (
                                     <span key={col} className="px-2 py-0.5 bg-white/[0.04] border border-white/[0.06] rounded-md text-[10px] text-gray-400 font-mono">{col}</span>
                                 ))}
                             </div>
+                            <p className="text-[9px] text-gray-700 mt-2">Campos: NOME, CPF, NASC, RENDA, SCORE, CELULARES</p>
                         </div>
 
                         {statusEnriquecer && <StatusAlert type={statusEnriquecer.type} message={statusEnriquecer.message} theme={theme} />}
@@ -349,8 +350,8 @@ function StatCard({ icon, label, value, theme, delay, accent }: {
 function StatusAlert({ type, message, theme }: { type: 'success' | 'error'; message: string; theme: any }) {
     return (
         <div className={`p-3 rounded-xl flex items-center gap-2.5 animate-fade-in-up ${type === 'success'
-                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                : 'bg-red-500/10 text-red-400 border border-red-500/20'
+            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+            : 'bg-red-500/10 text-red-400 border border-red-500/20'
             }`}>
             {type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
             <p className="text-xs font-medium">{message}</p>
