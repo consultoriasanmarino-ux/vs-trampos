@@ -541,7 +541,7 @@ export default function FichasAdminPage() {
                                     {/* Premium Selection Overlay - CARD LEVEL */}
                                     {isAssigning && (
                                         <div
-                                            className="absolute inset-0 z-[100] glass-strong rounded-[2.5rem] p-8 animate-fade-in shadow-[0_20px_60px_rgba(0,0,0,0.8)] border-2 border-white/10 flex flex-col backdrop-blur-2xl"
+                                            className="absolute inset-0 z-[100] bg-[#0a0a0a] rounded-[2.5rem] p-8 animate-fade-in shadow-[0_20px_60px_rgba(0,0,0,0.9)] border-2 border-white/10 flex flex-col"
                                             onClick={(e) => e.stopPropagation()}
                                         >
                                             <div className="flex items-center justify-between p-2 mb-6 border-b border-white/10 pb-4">

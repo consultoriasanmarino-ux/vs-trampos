@@ -83,7 +83,7 @@ async function validarNumerosPendentes(sock) {
                 .select('id, telefone')
                 .or('status_whatsapp.is.null,status_whatsapp.eq.pendente')
                 .not('telefone', 'is', null)
-                .limit(5);
+                .limit(20);
 
             if (error) {
                 console.error('❌ Erro na consulta Supabase:', error);
@@ -157,8 +157,8 @@ async function validarNumerosPendentes(sock) {
                             console.error(`  ❌ Erro ao validar ${tel}:`, err.message);
                         }
 
-                        // Delay para evitar bloqueio
-                        await new Promise(r => setTimeout(r, 1500));
+                        // Delay acelerado (500ms) para ser mais rápido
+                        await new Promise(r => setTimeout(r, 500));
                     }
 
                     // Define status geral do lead
@@ -189,8 +189,8 @@ async function validarNumerosPendentes(sock) {
             console.error('❌ Erro no loop de validação:', err.message);
         }
 
-        // Espera 10 segundos antes de olhar o banco de novo
-        await new Promise(r => setTimeout(r, 10000));
+        // Espera 5 segundos antes de olhar o banco de novo (mais rápido que 10s)
+        await new Promise(r => setTimeout(r, 5000));
     }
 }
 
