@@ -23,7 +23,6 @@ export async function POST(request: NextRequest) {
                     return {
                         cpf: cpfLimpo,
                         banco_principal_id: bancoId,
-                        created_at: new Date().toISOString(),
                     }
                 }
                 return null
