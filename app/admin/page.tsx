@@ -16,6 +16,7 @@ import {
     Zap,
     Cpu,
     Globe,
+    Trash2,
 } from 'lucide-react'
 import { supabase, Banco } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
@@ -66,9 +67,9 @@ export default function AdminDashboard() {
 
     const carregarStats = async () => {
         let queryTotal = supabase.from('clientes').select('*', { count: 'exact', head: true })
-        let queryWa = supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('status_whatsapp', 'ativo')
-        let queryFixo = supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('status_whatsapp', 'fixo')
-        let queryPend = supabase.from('clientes').select('*', { count: 'exact', head: true }).is('status_whatsapp', null).not('telefone', 'is', null)
+        let queryWa = supabase.from('clientes').select('*', { count: 'exact', head: true }).ilike('telefone', '%✅%')
+        let queryFixo = supabase.from('clientes').select('*', { count: 'exact', head: true }).or('telefone.ilike.%☎️%,telefone.ilike.%📞%')
+        let queryPend = supabase.from('clientes').select('*', { count: 'exact', head: true }).not('telefone', 'ilike', '%✅%').not('telefone', 'ilike', '%☎️%').not('telefone', 'ilike', '%📞%').not('telefone', 'is', null)
 
         if (selectedBankId) {
             queryTotal = queryTotal.eq('banco_principal_id', selectedBankId)
@@ -117,7 +118,7 @@ export default function AdminDashboard() {
     }
 
     const handleAutoConsultar = async () => {
-        // Busca todos os leads sem nome (apenas CPF)
+        // Busca todos os leads sem nome (apenas CPF) ou sem telefone
         let query = supabase.from('clientes').select('id, cpf, nome, telefone').or('nome.is.null,nome.eq.')
         if (selectedBankId) query = query.eq('banco_principal_id', selectedBankId)
 
@@ -127,8 +128,6 @@ export default function AdminDashboard() {
             alert('Erro ao buscar leads: ' + queryError.message)
             return
         }
-
-        console.log('Leads encontrados para enriquecer:', leadsParaEnriquecer)
 
         if (!leadsParaEnriquecer || leadsParaEnriquecer.length === 0) {
             alert('Não há fichas pendentes de consulta (todas já possuem nome).')
@@ -140,7 +139,6 @@ export default function AdminDashboard() {
         setEnriching(true)
         setEnrichProgress({ current: 0, total: leadsParaEnriquecer.length })
 
-        // Buscar configurações da API
         let apiUrl = localStorage.getItem('api_consulta_url') || 'https://completa.workbuscas.com/api?token={TOKEN}&modulo={MODULO}&consulta={PARAMETRO}'
         let apiToken = localStorage.getItem('api_consulta_token') || 'doavTXJphHLkpayfbdNdJyGp'
         let apiModulo = localStorage.getItem('api_consulta_modulo') || 'cpf'
@@ -159,7 +157,6 @@ export default function AdminDashboard() {
             console.warn('Erro ao ler configs do banco')
         }
 
-        // Processar em lotes de 5 via API route server-side (evita CORS)
         const batchSize = 5
         let totalSucessos = 0
         let totalErros = 0
@@ -181,12 +178,10 @@ export default function AdminDashboard() {
                 })
 
                 const result = await res.json()
-                console.log('Resultado do lote:', result)
 
                 if (result.success) {
                     totalSucessos += result.sucessos || 0
                     totalErros += (result.erros || 0)
-                    // Coleta detalhes dos erros
                     if (result.detalhes) {
                         result.detalhes.filter((d: any) => !d.sucesso).forEach((d: any) => {
                             erroDetalhes.push(`CPF ${d.cpf}: ${d.erro}`)
@@ -197,7 +192,6 @@ export default function AdminDashboard() {
                     totalErros += batch.length
                 }
             } catch (err: any) {
-                console.error('Erro no lote:', err)
                 erroDetalhes.push(`Erro de rede: ${err.message}`)
                 totalErros += batch.length
             }
@@ -216,12 +210,40 @@ export default function AdminDashboard() {
         alert(msg)
     }
 
+    const handleLimparCadastros = async () => {
+        if (!selectedBankId) {
+            alert('Selecione um banco primeiro.')
+            return
+        }
+
+        const confirmacao = confirm('ATENÇÃO: Isso excluirá PERMANENTEMENTE todos os leads deste banco que não possuem WhatsApp (ícone ✅). Deseja continuar?')
+        if (!confirmacao) return
+
+        setEnriching(true)
+        try {
+            const { error } = await supabase
+                .from('clientes')
+                .delete()
+                .eq('banco_principal_id', selectedBankId)
+                .not('telefone', 'ilike', '%✅%')
+
+            if (error) throw error
+
+            alert(`Limpeza concluída! Leads sem WhatsApp removidos com sucesso.`)
+            carregarStats()
+        } catch (err: any) {
+            console.error('Erro ao limpar:', err)
+            alert('Erro ao limpar cadastros: ' + err.message)
+        } finally {
+            setEnriching(false)
+        }
+    }
+
     return (
-        <div className="p-6 lg:p-8">
-            {/* Header */}
+        <div className="p-6 lg:p-8 text-white">
             <div className="flex items-center justify-between mb-8 animate-fade-in-up">
                 <div>
-                    <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+                    <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2 font-black uppercase italic">
                         Dashboard
                         {selectedBankName && (
                             <span
@@ -239,197 +261,102 @@ export default function AdminDashboard() {
                         {selectedBankName ? `Gerenciando leads do ${selectedBankName}` : 'Selecione um banco para começar'}
                     </p>
                 </div>
-                <button
-                    onClick={() => { carregarBancos(); carregarStats() }}
-                    className="flex items-center gap-2 px-4 py-2.5 glass rounded-xl text-gray-400 hover:text-white transition-all text-sm group"
-                >
-                    <RefreshCw size={14} className="group-hover:rotate-180 transition-transform duration-500" />
-                    Atualizar
-                </button>
+                <div className="flex items-center gap-3">
+                    {selectedBankId && (
+                        <button
+                            onClick={handleLimparCadastros}
+                            disabled={enriching}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-xl text-rose-500 transition-all text-xs font-black uppercase tracking-widest disabled:opacity-50"
+                        >
+                            <Trash2 size={14} />
+                            Limpar Cadastros
+                        </button>
+                    )}
+                    <button
+                        onClick={() => { carregarBancos(); carregarStats() }}
+                        className="flex items-center gap-2 px-4 py-2.5 glass rounded-xl text-gray-400 hover:text-white transition-all text-sm group"
+                    >
+                        <RefreshCw size={14} className="group-hover:rotate-180 transition-transform duration-500" />
+                        Atualizar
+                    </button>
+                </div>
             </div>
 
-            {/* Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-                <StatCard
-                    icon={<Users size={20} />}
-                    label="Total Leads"
-                    value={totalClientes}
-                    theme={theme}
-                    delay="stagger-1"
-                />
-                <StatCard
-                    icon={<Smartphone size={20} />}
-                    label="WhatsApp"
-                    value={totalWhatsapp}
-                    theme={theme}
-                    delay="stagger-2"
-                    accent="green"
-                />
-                <StatCard
-                    icon={<Phone size={20} />}
-                    label="Fixo / Outros"
-                    value={totalFixo}
-                    theme={theme}
-                    delay="stagger-3"
-                    accent="yellow"
-                />
-                <StatCard
-                    icon={<RefreshCw size={20} />}
-                    label="Analisando"
-                    value={totalPendentes}
-                    theme={theme}
-                    delay="stagger-4"
-                    accent="purple"
-                />
-                <StatCard
-                    icon={<Database size={20} />}
-                    label="Bancos"
-                    value={totalBancos}
-                    theme={theme}
-                    delay="stagger-5"
-                    accent="blue"
-                />
+                <StatCard icon={<Users size={20} />} label="Total Leads" value={totalClientes} theme={theme} delay="stagger-1" />
+                <StatCard icon={<Smartphone size={20} />} label="WhatsApp" value={totalWhatsapp} theme={theme} delay="stagger-2" accent="green" />
+                <StatCard icon={<Phone size={20} />} label="Fixo / Outros" value={totalFixo} theme={theme} delay="stagger-3" accent="yellow" />
+                <StatCard icon={<RefreshCw size={20} />} label="Analisando" value={totalPendentes} theme={theme} delay="stagger-4" accent="purple" />
+                <StatCard icon={<Database size={20} />} label="Bancos" value={totalBancos} theme={theme} delay="stagger-5" accent="blue" />
             </div>
 
-            {/* Upload Modules */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Import CPF */}
                 <div className={`glass rounded-2xl p-6 card-hover animate-fade-in-up stagger-2`}>
                     <div className="flex items-center gap-3 mb-6">
-                        <div
-                            className="p-2.5 rounded-xl transition-all duration-500"
-                            style={{ background: `rgba(${theme.primaryRGB}, 0.1)` }}
-                        >
+                        <div className="p-2.5 rounded-xl transition-all duration-500" style={{ background: `rgba(${theme.primaryRGB}, 0.1)` }}>
                             <Upload size={20} style={{ color: theme.primary }} />
                         </div>
                         <div>
                             <h2 className="text-base font-semibold text-white">Importar CPFs</h2>
-                            <p className="text-xs text-gray-600">
-                                Vinculado ao <span style={{ color: theme.primary }} className="font-semibold">{selectedBankName || '...'}</span>
-                            </p>
+                            <p className="text-xs text-gray-600">Vinculado ao <span style={{ color: theme.primary }} className="font-semibold">{selectedBankName || '...'}</span></p>
                         </div>
                     </div>
-
                     <form onSubmit={handleUploadCpf} className="space-y-4">
-                        {/* Upload area */}
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Arquivo TXT</label>
-                            <div
-                                className="border border-dashed rounded-2xl p-8 text-center transition-all duration-300 cursor-pointer relative group"
-                                style={{ borderColor: `rgba(${theme.primaryRGB}, 0.15)` }}
-                            >
-                                <input
-                                    type="file"
-                                    accept=".txt"
-                                    onChange={(e) => setFileCpf(e.target.files?.[0] || null)}
-                                    className="absolute inset-0 opacity-0 cursor-pointer"
-                                />
-                                <FileText
-                                    className="mx-auto mb-3 transition-all duration-300 group-hover:scale-110"
-                                    size={36}
-                                    style={{ color: fileCpf ? theme.primary : 'rgb(50,50,50)' }}
-                                />
+                            <div className="border border-dashed rounded-2xl p-8 text-center transition-all duration-300 cursor-pointer relative group" style={{ borderColor: `rgba(${theme.primaryRGB}, 0.15)` }}>
+                                <input type="file" accept=".txt" onChange={(e) => setFileCpf(e.target.files?.[0] || null)} className="absolute inset-0 opacity-0 cursor-pointer" />
+                                <FileText className="mx-auto mb-3 transition-all duration-300 group-hover:scale-110" size={36} style={{ color: fileCpf ? theme.primary : 'rgb(50,50,50)' }} />
                                 <p className="text-xs text-gray-500">
-                                    {fileCpf ? (
-                                        <span style={{ color: theme.primary }} className="font-semibold">{fileCpf.name}</span>
-                                    ) : (
-                                        'Clique ou arraste o arquivo .txt'
-                                    )}
+                                    {fileCpf ? <span style={{ color: theme.primary }} className="font-semibold">{fileCpf.name}</span> : 'Clique ou arraste o arquivo .txt'}
                                 </p>
                                 <p className="text-[10px] text-gray-700 mt-1">Um CPF por linha</p>
                             </div>
                         </div>
-
                         {statusCpf && <StatusAlert type={statusCpf.type} message={statusCpf.message} theme={theme} />}
-
-                        <button
-                            type="submit"
-                            disabled={loadingCpf || !fileCpf || !selectedBankId}
-                            className="w-full text-white font-semibold py-3.5 rounded-xl active:scale-[0.98] transition-all disabled:opacity-30 disabled:cursor-not-allowed text-sm relative overflow-hidden"
-                            style={{
-                                background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary}cc)`,
-                                boxShadow: `0 4px 20px rgba(${theme.primaryRGB}, 0.3)`,
-                            }}
-                        >
+                        <button type="submit" disabled={loadingCpf || !fileCpf || !selectedBankId} className="w-full text-white font-semibold py-3.5 rounded-xl active:scale-[0.98] transition-all disabled:opacity-30 disabled:cursor-not-allowed text-sm relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary}cc)`, boxShadow: `0 4px 20px rgba(${theme.primaryRGB}, 0.3)` }}>
                             <div className="absolute inset-0 animate-shimmer" />
                             <span className="relative">{loadingCpf ? 'Processando...' : 'Importar CPFs'}</span>
                         </button>
                     </form>
                 </div>
 
-                {/* Auto Consult Section */}
                 <div className={`glass rounded-2xl p-6 card-hover animate-fade-in-up stagger-3 relative overflow-hidden`}>
                     <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
                         <Cpu size={100} />
                     </div>
-
                     <div className="flex items-center gap-3 mb-6">
-                        <div
-                            className="p-2.5 rounded-xl transition-all duration-500"
-                            style={{ background: `rgba(${theme.primaryRGB}, 0.1)` }}
-                        >
+                        <div className="p-2.5 rounded-xl transition-all duration-500" style={{ background: `rgba(${theme.primaryRGB}, 0.1)` }}>
                             <Zap size={20} style={{ color: theme.primary }} />
                         </div>
                         <div>
                             <h2 className="text-base font-semibold text-white uppercase tracking-tight italic">Consultar Automático</h2>
-                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
-                                Enriquecer leads importados (Apenas CPFs)
-                            </p>
+                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Enriquecer leads importados (Apenas CPFs)</p>
                         </div>
                     </div>
-
                     <div className="space-y-6">
                         <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 text-center">
                             <Database className="mx-auto mb-4 text-gray-700" size={48} />
-                            <p className="text-sm text-gray-400 mb-2">
-                                Identificamos automaticamente os leads que possuem apenas o CPF e buscamos os dados na API configurada.
-                            </p>
-                            <p className="text-[10px] text-gray-600 font-black uppercase tracking-[0.2em]">
-                                Nome • Idade • Renda • Score
-                            </p>
+                            <p className="text-sm text-gray-400 mb-2">Identificamos automaticamente os leads que possuem apenas o CPF e buscamos os dados na API configurada.</p>
+                            <p className="text-[10px] text-gray-600 font-black uppercase tracking-[0.2em]">Nome • Idade • Renda • Score</p>
                         </div>
-
                         {enriching && (
                             <div className="space-y-3 px-1">
                                 <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-widest">
-                                    <span className="text-gray-500">Progresso da Consulta</span>
+                                    <span className="text-gray-500">Progresso da Operação</span>
                                     <span style={{ color: theme.primary }}>{enrichProgress.current} / {enrichProgress.total}</span>
                                 </div>
                                 <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden border border-white/5">
-                                    <div
-                                        className="h-full transition-all duration-500 animate-pulse"
-                                        style={{
-                                            width: `${(enrichProgress.current / enrichProgress.total) * 100}%`,
-                                            background: `linear-gradient(to right, ${theme.primary}, ${theme.primary}88)`
-                                        }}
-                                    />
+                                    <div className="h-full transition-all duration-500 animate-pulse" style={{ width: enrichProgress.total > 0 ? `${(enrichProgress.current / enrichProgress.total) * 100}%` : '0%', background: `linear-gradient(to right, ${theme.primary}, ${theme.primary}88)` }} />
                                 </div>
                             </div>
                         )}
-
-                        <button
-                            onClick={handleAutoConsultar}
-                            disabled={enriching || totalClientes === 0}
-                            className="w-full flex items-center justify-center gap-3 font-black uppercase tracking-[0.15em] text-xs py-5 rounded-[1.2rem] shadow-2xl transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed group relative overflow-hidden"
-                            style={{
-                                background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary}88)`,
-                                color: 'white',
-                                boxShadow: `0 10px 40px rgba(${theme.primaryRGB}, 0.2)`
-                            }}
-                        >
+                        <button onClick={handleAutoConsultar} disabled={enriching || totalClientes === 0} className="w-full flex items-center justify-center gap-3 font-black uppercase tracking-[0.15em] text-xs py-5 rounded-[1.2rem] shadow-2xl transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed group relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary}88)`, color: 'white', boxShadow: `0 10px 40px rgba(${theme.primaryRGB}, 0.2)` }}>
                             {enriching ? (
-                                <>
-                                    <RefreshCw className="animate-spin" size={18} />
-                                    <span>Consultando...</span>
-                                </>
+                                <><RefreshCw className="animate-spin" size={18} /><span>Processando...</span></>
                             ) : (
-                                <>
-                                    <Zap size={18} className="group-hover:scale-125 transition-transform" />
-                                    <span>Iniciar Consulta Automática</span>
-                                </>
+                                <><Zap size={18} className="group-hover:scale-125 transition-transform" /><span>Iniciar Consulta Automática</span></>
                             )}
-
-                            {/* Shimmer effect */}
                             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer pointer-events-none" />
                         </button>
                     </div>
@@ -448,9 +375,7 @@ function StatCard({ icon, label, value, theme, delay, accent }: {
         purple: { bg: 'rgba(168, 85, 247, 0.1)', text: '#a855f7' },
         blue: { bg: 'rgba(59, 130, 246, 0.1)', text: '#3b82f6' },
     }
-
     const c = accent ? colors[accent] : { bg: `rgba(${theme.primaryRGB}, 0.1)`, text: theme.primary }
-
     return (
         <div className={`glass rounded-2xl p-5 card-hover animate-fade-in-up ${delay} relative overflow-hidden`}>
             <div className="flex items-center justify-between mb-3">
@@ -461,8 +386,6 @@ function StatCard({ icon, label, value, theme, delay, accent }: {
             </div>
             <p className="text-2xl font-bold text-white">{value.toLocaleString()}</p>
             <p className="text-[10px] text-gray-600 mt-0.5 font-semibold uppercase tracking-wider">{label}</p>
-
-            {/* Decorative line */}
             <div className="absolute bottom-0 left-0 right-0 h-[2px] opacity-30" style={{ background: `linear-gradient(to right, transparent, ${c.text}, transparent)` }} />
         </div>
     )

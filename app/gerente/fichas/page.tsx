@@ -40,6 +40,7 @@ export default function GerenteFichas() {
             .from('clientes')
             .select('*')
             .eq('banco_principal_id', selectedBankId!)
+            .ilike('telefone', '%✅%')
             .order('created_at', { ascending: false })
 
         if (activeTab === 'atribuir') {
