@@ -21,7 +21,7 @@ export default function LigadorLayout({ children }: { children: React.ReactNode 
                 {[...Array(4)].map((_, i) => (
                     <div
                         key={i}
-                        className="absolute rounded-full animate-float"
+                        className="absolute rounded-full animate-float hidden sm:block"
                         style={{
                             width: `${3 + i}px`,
                             height: `${3 + i}px`,
@@ -36,8 +36,8 @@ export default function LigadorLayout({ children }: { children: React.ReactNode 
             </div>
 
             {/* Top Bar */}
-            <header className="glass-strong px-6 py-4 flex items-center justify-between sticky top-0 z-50">
-                <div className="flex items-center gap-3">
+            <header className="glass-strong px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between sticky top-0 z-50">
+                <div className="flex items-center gap-2 sm:gap-3">
                     <div className="w-9 h-9 bg-gradient-to-br from-violet-600/30 to-purple-700/15 rounded-xl flex items-center justify-center border border-violet-500/20">
                         <Zap className="w-4 h-4 text-violet-400" />
                     </div>
@@ -48,14 +48,14 @@ export default function LigadorLayout({ children }: { children: React.ReactNode 
                 </div>
                 <button
                     onClick={handleLogout}
-                    className="flex items-center gap-2 px-4 py-2 text-gray-500 hover:text-red-400 hover:bg-red-500/5 rounded-xl transition-all text-sm"
+                    className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 text-gray-500 hover:text-red-400 hover:bg-red-500/5 rounded-xl transition-all text-xs sm:text-sm"
                 >
                     <LogOut size={16} />
-                    Sair
+                    <span className="hidden sm:inline">Sair</span>
                 </button>
             </header>
 
-            <main className="p-6 max-w-7xl mx-auto relative z-10">
+            <main className="px-3 py-4 sm:p-6 max-w-7xl mx-auto relative z-10">
                 {children}
             </main>
         </div>

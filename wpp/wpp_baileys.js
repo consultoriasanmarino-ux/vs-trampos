@@ -9,6 +9,22 @@ const { createClient } = require('@supabase/supabase-js');
 const QRCode = require('qrcode');
 const pino = require('pino');
 
+// Filtra mensagens de ruído do Baileys no console
+const originalError = console.error;
+const originalLog = console.log;
+const filtros = ['Bad MAC', 'Closing session', 'Failed to decrypt', 'Session error', 'SessionEntry', '_chains', 'registrationId', 'currentRatchet', 'ephemeralKeyPair', 'rootKey', 'indexInfo', 'baseKey', 'pendingPreKey', 'chainKey', 'Buffer', 'privKey', 'pubKey', 'previousCounter', 'remoteIdentityKey', 'signedKeyId', 'preKeyId', 'chainType', 'messageKeys', 'baseKeyType', 'Closing open session'];
+
+console.error = (...args) => {
+    const msg = args.map(String).join(' ');
+    if (filtros.some(f => msg.includes(f))) return;
+    originalError.apply(console, args);
+};
+console.log = (...args) => {
+    const msg = args.map(String).join(' ');
+    if (filtros.some(f => msg.includes(f))) return;
+    originalLog.apply(console, args);
+};
+
 // Configurações Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
@@ -24,7 +40,12 @@ async function connectToWhatsApp() {
         version,
         auth: state,
         logger,
-        browser: ['VS Trampos', 'Chrome', '1.0.0']
+        browser: ['VS Trampos', 'Chrome', '1.0.0'],
+        // Evita processar mensagens (não precisamos, só validamos números)
+        syncFullHistory: false,
+        shouldSyncHistoryMessage: () => false,
+        markOnlineOnConnect: false,
+        getMessage: async () => ({ conversation: '' }),
     });
 
     sock.ev.on('creds.update', saveCreds);

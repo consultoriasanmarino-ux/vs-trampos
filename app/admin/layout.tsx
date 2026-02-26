@@ -13,7 +13,9 @@ import {
     ChevronDown,
     Sparkles,
     Zap,
-    CreditCard
+    CreditCard,
+    Menu,
+    X
 } from 'lucide-react'
 import { supabase, Banco } from '@/lib/supabase'
 import { BankThemeProvider, useBankTheme } from '@/lib/bank-theme'
@@ -33,6 +35,7 @@ function AdminContent({ children }: { children: React.ReactNode }) {
     const { theme, selectedBankId, selectedBankName, setSelectedBank } = useBankTheme()
     const [bancos, setBancos] = useState<Banco[]>([])
     const [selectorOpen, setSelectorOpen] = useState(false)
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
     const dropdownRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
@@ -41,7 +44,6 @@ function AdminContent({ children }: { children: React.ReactNode }) {
             if (data && data.length > 0) {
                 setBancos(data)
 
-                // Se não tiver banco selecionado, tenta selecionar Nubank ou o primeiro
                 if (!selectedBankId) {
                     const nubank = data.find(b => b.nome.toLowerCase().includes('nubank'))
                     if (nubank) {
@@ -69,6 +71,11 @@ function AdminContent({ children }: { children: React.ReactNode }) {
         }
         return () => document.removeEventListener('mousedown', handleClickOutside)
     }, [selectorOpen])
+
+    // Fechar menu mobile ao navegar
+    useEffect(() => {
+        setMobileMenuOpen(false)
+    }, [pathname])
 
     const handleLogout = async () => {
         await fetch('/api/auth/logout', { method: 'POST' })
@@ -100,7 +107,7 @@ function AdminContent({ children }: { children: React.ReactNode }) {
                 {[...Array(6)].map((_, i) => (
                     <div
                         key={i}
-                        className="absolute rounded-full animate-float"
+                        className="absolute rounded-full animate-float hidden md:block"
                         style={{
                             width: `${4 + i * 2}px`,
                             height: `${4 + i * 2}px`,
@@ -114,9 +121,22 @@ function AdminContent({ children }: { children: React.ReactNode }) {
                 ))}
             </div>
 
+            {/* ===== MOBILE OVERLAY ===== */}
+            {mobileMenuOpen && (
+                <div
+                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+                    onClick={() => setMobileMenuOpen(false)}
+                />
+            )}
+
             {/* ===== SIDEBAR ===== */}
-            <aside className="w-[260px] glass-strong fixed h-full z-40 flex flex-col animate-slide-in-left">
-                <div className="p-5 pb-3">
+            <aside className={`
+                w-[260px] glass-strong fixed h-full z-50 flex flex-col
+                transition-transform duration-300 ease-in-out
+                ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+                lg:translate-x-0
+            `}>
+                <div className="p-5 pb-3 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div
                             className="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg transition-all duration-500"
@@ -131,9 +151,16 @@ function AdminContent({ children }: { children: React.ReactNode }) {
                             </p>
                         </div>
                     </div>
+                    {/* Close button mobile */}
+                    <button
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="lg:hidden p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-all"
+                    >
+                        <X size={20} />
+                    </button>
                 </div>
 
-                <nav className="flex-1 px-3 mt-3 space-y-0.5">
+                <nav className="flex-1 px-3 mt-3 space-y-0.5 overflow-y-auto">
                     <p className="px-3 text-[9px] font-bold text-gray-700 uppercase tracking-[0.2em] mb-2">Menu</p>
                     {navItems.map((item) => {
                         const isActive = pathname === item.href || (item.href !== '/admin' && pathname.startsWith(item.href))
@@ -174,67 +201,76 @@ function AdminContent({ children }: { children: React.ReactNode }) {
             </aside>
 
             {/* ===== MAIN CONTENT ===== */}
-            <main className="flex-1 ml-[260px] min-h-screen relative z-10">
-                {/* ===== TOP BAR WITH BANK SELECTOR ===== */}
-                <header className="sticky top-0 z-50 glass-strong px-6 py-3">
+            <main className="flex-1 lg:ml-[260px] min-h-screen relative z-10 w-full">
+                {/* ===== TOP BAR ===== */}
+                <header className="sticky top-0 z-30 glass-strong px-4 lg:px-6 py-3">
                     <div className="flex items-center justify-between">
-                        {/* Bank Selector */}
-                        <div className="relative" ref={dropdownRef}>
+                        {/* Mobile hamburger + Bank Selector */}
+                        <div className="flex items-center gap-2">
                             <button
-                                onClick={() => setSelectorOpen(!selectorOpen)}
-                                className="bank-selector-glow flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300 hover:bg-white/[0.03]"
-                                style={{ '--accent': theme.primaryRGB } as React.CSSProperties}
+                                onClick={() => setMobileMenuOpen(true)}
+                                className="lg:hidden p-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/10 transition-all"
                             >
-                                <div
-                                    className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-500"
-                                    style={{ background: `rgba(${theme.primaryRGB}, 0.15)` }}
-                                >
-                                    <Landmark size={15} style={{ color: theme.primary }} />
-                                </div>
-                                <div className="text-left">
-                                    <p className="text-[10px] text-gray-600 font-semibold uppercase tracking-wider">Banco Ativo</p>
-                                    <p className="text-sm font-bold text-white">{selectedBankName || 'Nenhum selecionado'}</p>
-                                </div>
-                                <ChevronDown
-                                    size={14}
-                                    className={`text-gray-500 transition-transform duration-300 ml-2 ${selectorOpen ? 'rotate-180' : ''}`}
-                                />
+                                <Menu size={22} />
                             </button>
 
-                            {/* Dropdown */}
-                            {selectorOpen && (
-                                <div className="absolute top-full left-0 mt-2 w-72 glass-strong rounded-2xl p-2 animate-fade-in-up shadow-2xl z-[100]">
-                                    <p className="px-3 py-2 text-[9px] text-gray-600 font-bold uppercase tracking-wider">
-                                        Escolha o banco para trabalhar
-                                    </p>
-                                    {bancos.map((banco) => (
-                                        <button
-                                            key={banco.id}
-                                            onClick={() => handleSelectBank(banco)}
-                                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-200 ${selectedBankId === banco.id
-                                                ? 'bg-white/[0.08] text-white'
-                                                : 'text-gray-400 hover:text-white hover:bg-white/[0.04]'
-                                                }`}
-                                        >
-                                            <div className="w-3 h-3 rounded-full transition-all duration-300 border border-white/10" style={{
-                                                background: banco.cor || '#7c3aed'
-                                            }} />
-                                            <span className="text-sm font-medium">{banco.nome}</span>
-                                            {selectedBankId === banco.id && (
-                                                <Sparkles size={12} className="ml-auto" style={{ color: theme.primary }} />
-                                            )}
-                                        </button>
-                                    ))}
-                                    {bancos.length === 0 && (
-                                        <p className="px-3 py-4 text-xs text-gray-600 text-center">Nenhum banco cadastrado</p>
-                                    )}
-                                </div>
-                            )}
+                            <div className="relative" ref={dropdownRef}>
+                                <button
+                                    onClick={() => setSelectorOpen(!selectorOpen)}
+                                    className="bank-selector-glow flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 rounded-xl transition-all duration-300 hover:bg-white/[0.03]"
+                                    style={{ '--accent': theme.primaryRGB } as React.CSSProperties}
+                                >
+                                    <div
+                                        className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-500"
+                                        style={{ background: `rgba(${theme.primaryRGB}, 0.15)` }}
+                                    >
+                                        <Landmark size={15} style={{ color: theme.primary }} />
+                                    </div>
+                                    <div className="text-left">
+                                        <p className="text-[10px] text-gray-600 font-semibold uppercase tracking-wider hidden sm:block">Banco Ativo</p>
+                                        <p className="text-xs sm:text-sm font-bold text-white truncate max-w-[100px] sm:max-w-none">{selectedBankName || 'Selecionar'}</p>
+                                    </div>
+                                    <ChevronDown
+                                        size={14}
+                                        className={`text-gray-500 transition-transform duration-300 ${selectorOpen ? 'rotate-180' : ''}`}
+                                    />
+                                </button>
+
+                                {/* Dropdown */}
+                                {selectorOpen && (
+                                    <div className="absolute top-full left-0 mt-2 w-64 sm:w-72 glass-strong rounded-2xl p-2 animate-fade-in-up shadow-2xl z-[100]">
+                                        <p className="px-3 py-2 text-[9px] text-gray-600 font-bold uppercase tracking-wider">
+                                            Escolha o banco para trabalhar
+                                        </p>
+                                        {bancos.map((banco) => (
+                                            <button
+                                                key={banco.id}
+                                                onClick={() => handleSelectBank(banco)}
+                                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-200 ${selectedBankId === banco.id
+                                                    ? 'bg-white/[0.08] text-white'
+                                                    : 'text-gray-400 hover:text-white hover:bg-white/[0.04]'
+                                                    }`}
+                                            >
+                                                <div className="w-3 h-3 rounded-full transition-all duration-300 border border-white/10" style={{
+                                                    background: banco.cor || '#7c3aed'
+                                                }} />
+                                                <span className="text-sm font-medium">{banco.nome}</span>
+                                                {selectedBankId === banco.id && (
+                                                    <Sparkles size={12} className="ml-auto" style={{ color: theme.primary }} />
+                                                )}
+                                            </button>
+                                        ))}
+                                        {bancos.length === 0 && (
+                                            <p className="px-3 py-4 text-xs text-gray-600 text-center">Nenhum banco cadastrado</p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* Right side */}
-                        <div className="flex items-center gap-3">
-                            <div className="text-right">
+                        <div className="flex items-center gap-2 sm:gap-3">
+                            <div className="text-right hidden sm:block">
                                 <p className="text-[10px] text-gray-600 font-semibold uppercase tracking-wider">Admin</p>
                                 <p className="text-xs font-bold text-white">osevenboy</p>
                             </div>
@@ -250,7 +286,7 @@ function AdminContent({ children }: { children: React.ReactNode }) {
 
                 {/* ===== BANK SELECTION OVERLAY ===== */}
                 {!selectedBankId && (
-                    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-md animate-fade-in ml-[260px]">
+                    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-md animate-fade-in lg:ml-[260px]">
                         <div className="glass-strong rounded-3xl p-8 max-w-md w-full mx-4 animate-fade-in-up text-center">
                             <div
                                 className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-lg"
