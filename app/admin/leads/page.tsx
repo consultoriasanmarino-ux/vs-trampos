@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Users, Search, Smartphone, Phone, AlertTriangle, Filter, Trash2, X, AlertCircle } from 'lucide-react'
+import { Users, Search, Smartphone, Phone, AlertTriangle, Filter, Trash2, X, AlertCircle, RefreshCw } from 'lucide-react'
 import { supabase, Cliente, Banco } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
 
@@ -71,7 +71,8 @@ export default function LeadsPage() {
         return c.cpf?.toLowerCase().includes(termo) || c.nome?.toLowerCase().includes(termo) || c.telefone?.includes(termo)
     })
 
-    const statusIcon = (status: string | null) => {
+    const statusIcon = (status: string | null, telefone: string | null) => {
+        if (!status && telefone) return <RefreshCw size={14} className="text-purple-500 animate-spin" />
         switch (status) {
             case 'ativo': return <Smartphone size={14} className="text-green-500" />
             case 'fixo': return <Phone size={14} className="text-yellow-500" />
@@ -80,7 +81,8 @@ export default function LeadsPage() {
         }
     }
 
-    const statusLabel = (status: string | null) => {
+    const statusLabel = (status: string | null, telefone: string | null) => {
+        if (!status && telefone) return 'Analisando...'
         switch (status) {
             case 'ativo': return 'WhatsApp'
             case 'fixo': return 'Fixo'
@@ -208,8 +210,8 @@ export default function LeadsPage() {
                                         <td className="px-5 py-3.5 text-sm text-gray-300 font-mono">{c.telefone || '—'}</td>
                                         <td className="px-5 py-3.5">
                                             <div className="flex items-center gap-1.5">
-                                                {statusIcon(c.status_whatsapp)}
-                                                <span className="text-xs text-gray-400">{statusLabel(c.status_whatsapp)}</span>
+                                                {statusIcon(c.status_whatsapp, c.telefone)}
+                                                <span className="text-xs text-gray-400">{statusLabel(c.status_whatsapp, c.telefone)}</span>
                                             </div>
                                         </td>
                                         <td className="px-5 py-3.5">

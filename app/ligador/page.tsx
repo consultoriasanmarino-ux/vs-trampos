@@ -106,7 +106,14 @@ export default function LigadorPage() {
 
     const theme = bancoSelecionado ? themeFromColor(bancoSelecionado.cor) : null
 
-    const statusBadge = (status: string | null) => {
+    const statusBadge = (status: string | null, telefone: string | null) => {
+        if (!status && telefone) {
+            return (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-500/10 text-purple-400 rounded-md text-[10px] font-semibold">
+                    <RefreshCw size={10} className="animate-spin" /> Analisando...
+                </span>
+            )
+        }
         switch (status) {
             case 'ativo':
                 return (
@@ -316,7 +323,7 @@ export default function LigadorPage() {
                                         <p className="text-[10px] text-gray-600 font-mono">{c.cpf}</p>
                                     </div>
                                 </div>
-                                {statusBadge(c.status_whatsapp)}
+                                {statusBadge(c.status_whatsapp, c.telefone)}
                             </div>
 
                             {/* Info Grid */}

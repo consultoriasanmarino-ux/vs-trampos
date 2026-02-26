@@ -3,10 +3,18 @@ import { supabase } from '@/lib/supabase'
 
 // Parser do formato Leads_completos.txt
 function parseTxtLeads(text: string) {
-    const blocos = text.split(/^-{10,}$/m)
+    // Tenta dividir por traços primeiro
+    let rawBlocos = text.split(/^-{5,}$/m)
+
+    // Se só deu um bloco, pode ser que não tenha divisores de traço
+    // Mas se tiver múltiplos 'NOME:', vamos dividir por 'NOME:'
+    if (rawBlocos.length <= 1) {
+        rawBlocos = text.split(/(?=NOME:)/gi)
+    }
+
     const leads: any[] = []
 
-    for (const bloco of blocos) {
+    for (const bloco of rawBlocos) {
         const lines = bloco.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean)
         if (lines.length === 0) continue
 
@@ -17,13 +25,13 @@ function parseTxtLeads(text: string) {
             if (upLine.startsWith('NOME:')) {
                 lead.nome = line.substring(5).trim()
             } else if (upLine.startsWith('CPF:')) {
-                lead.cpf = line.substring(4).trim().replace(/[.\-\s]/g, '')
+                lead.cpf = line.substring(4).trim().replace(/\D/g, '')
             } else if (upLine.startsWith('NASC:')) {
                 lead.data_nascimento = line.substring(5).trim()
             } else if (upLine.startsWith('RENDA:')) {
                 const parts = line.substring(6).trim()
                 const rendaPart = parts.split('|')[0]?.trim()
-                const scorePart = parts.split('SCORE:')[1]?.trim()
+                const scorePart = parts.split(/SCORE:/i)[1]?.trim()
 
                 if (rendaPart && rendaPart !== 'N/A') {
                     const rendaNum = parseFloat(rendaPart.replace(/\./g, '').replace(',', '.'))
@@ -36,14 +44,23 @@ function parseTxtLeads(text: string) {
             } else if (upLine.startsWith('CELULARES:') || upLine.startsWith('TELEFONES:') || upLine.startsWith('CELULAR:')) {
                 const telsStr = line.split(':')[1]?.trim()
                 if (telsStr && telsStr !== 'Nenhum' && telsStr !== 'N/A') {
-                    // Pega o primeiro telefone da lista
-                    lead.telefone = telsStr.split(',')[0].trim()
+                    // Limpa e pega o primeiro telefone válido
+                    const tels = telsStr.split(',')
+                    const cleanTel = tels[0].replace(/\D/g, '')
+                    if (cleanTel) lead.telefone = cleanTel
                 }
             }
         }
 
-        if (lead.cpf && lead.cpf.length === 11) {
-            leads.push(lead)
+        if (lead.cpf) {
+            // Se tiver 10 dígitos, provavelmente falta o zero à esquerda
+            if (lead.cpf.length === 10) {
+                lead.cpf = '0' + lead.cpf
+            }
+
+            if (lead.cpf.length === 11) {
+                leads.push(lead)
+            }
         }
     }
     return leads

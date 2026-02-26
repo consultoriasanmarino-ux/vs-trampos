@@ -31,6 +31,7 @@ export default function AdminDashboard() {
     const [totalClientes, setTotalClientes] = useState(0)
     const [totalWhatsapp, setTotalWhatsapp] = useState(0)
     const [totalFixo, setTotalFixo] = useState(0)
+    const [totalPendentes, setTotalPendentes] = useState(0)
     const [totalBancos, setTotalBancos] = useState(0)
 
     useEffect(() => {
@@ -62,20 +63,24 @@ export default function AdminDashboard() {
         let queryTotal = supabase.from('clientes').select('*', { count: 'exact', head: true })
         let queryWa = supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('status_whatsapp', 'ativo')
         let queryFixo = supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('status_whatsapp', 'fixo')
+        let queryPend = supabase.from('clientes').select('*', { count: 'exact', head: true }).is('status_whatsapp', null).not('telefone', 'is', null)
 
         if (selectedBankId) {
             queryTotal = queryTotal.eq('banco_principal_id', selectedBankId)
             queryWa = queryWa.eq('banco_principal_id', selectedBankId)
             queryFixo = queryFixo.eq('banco_principal_id', selectedBankId)
+            queryPend = queryPend.eq('banco_principal_id', selectedBankId)
         }
 
         const { count: total } = await queryTotal
         const { count: whatsapp } = await queryWa
         const { count: fixo } = await queryFixo
+        const { count: pendentes } = await queryPend
 
         setTotalClientes(total || 0)
         setTotalWhatsapp(whatsapp || 0)
         setTotalFixo(fixo || 0)
+        setTotalPendentes(pendentes || 0)
     }
 
     const handleUploadCpf = async (e: React.FormEvent) => {
@@ -96,7 +101,6 @@ export default function AdminDashboard() {
             if (res.ok) {
                 setStatusCpf({ type: 'success', message: data.message })
                 setFileCpf(null)
-                // carregarStats() // Realtime vai cuidar disso
             } else {
                 setStatusCpf({ type: 'error', message: data.error })
             }
@@ -125,7 +129,6 @@ export default function AdminDashboard() {
             if (res.ok) {
                 setStatusEnriquecer({ type: 'success', message: data.message })
                 setFileEnriquecer(null)
-                // carregarStats() // Realtime vai cuidar disso
             } else {
                 setStatusEnriquecer({ type: 'error', message: data.error })
             }
@@ -169,17 +172,17 @@ export default function AdminDashboard() {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
                 <StatCard
                     icon={<Users size={20} />}
-                    label="Total Clientes"
+                    label="Total Leads"
                     value={totalClientes}
                     theme={theme}
                     delay="stagger-1"
                 />
                 <StatCard
                     icon={<Smartphone size={20} />}
-                    label="WhatsApp Ativo"
+                    label="WhatsApp"
                     value={totalWhatsapp}
                     theme={theme}
                     delay="stagger-2"
@@ -187,19 +190,27 @@ export default function AdminDashboard() {
                 />
                 <StatCard
                     icon={<Phone size={20} />}
-                    label="Telefone Fixo"
+                    label="Fixo / Outros"
                     value={totalFixo}
                     theme={theme}
                     delay="stagger-3"
                     accent="yellow"
                 />
                 <StatCard
+                    icon={<RefreshCw size={20} />}
+                    label="Analisando"
+                    value={totalPendentes}
+                    theme={theme}
+                    delay="stagger-4"
+                    accent="purple"
+                />
+                <StatCard
                     icon={<Database size={20} />}
                     label="Bancos"
                     value={totalBancos}
                     theme={theme}
-                    delay="stagger-4"
-                    accent="purple"
+                    delay="stagger-5"
+                    accent="blue"
                 />
             </div>
 
@@ -339,6 +350,7 @@ function StatCard({ icon, label, value, theme, delay, accent }: {
         green: { bg: 'rgba(34, 197, 94, 0.1)', text: '#22c55e' },
         yellow: { bg: 'rgba(234, 179, 8, 0.1)', text: '#eab308' },
         purple: { bg: 'rgba(168, 85, 247, 0.1)', text: '#a855f7' },
+        blue: { bg: 'rgba(59, 130, 246, 0.1)', text: '#3b82f6' },
     }
 
     const c = accent ? colors[accent] : { bg: `rgba(${theme.primaryRGB}, 0.1)`, text: theme.primary }

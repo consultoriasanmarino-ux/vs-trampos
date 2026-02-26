@@ -76,18 +76,36 @@ async function validarNumerosPendentes(sock) {
 
                     try {
                         // Verifica no WhatsApp se o número existe
-                        const [result] = await sock.onWhatsApp(jid);
+                        const results = await sock.onWhatsApp(jid);
+                        const result = results[0];
 
-                        const status = result?.exists ? 'ativo' : 'invalido';
+                        let status = 'invalido';
+                        if (result?.exists) {
+                            status = 'ativo';
+                        } else {
+                            // Se não existe, tenta classificar se é fixo ou inválido pelo tamanho
+                            // 10 dígitos (DDD + 8 números) = provável Fixo
+                            // 11 dígitos (DDD + 9 números) = provável Celular Inválido
+                            if (telLimpo.length === 10) {
+                                status = 'fixo';
+                            } else {
+                                status = 'invalido';
+                            }
+                        }
 
                         await supabase
                             .from('clientes')
                             .update({ status_whatsapp: status })
                             .eq('id', lead.id);
 
-                        console.log(`✅ Número ${telLimpo}: ${status.toUpperCase()}`);
+                        console.log(`✅ Número ${telLimpo}: ${status.toUpperCase()}${result?.exists ? ' (WhatsApp)' : ''}`);
                     } catch (err) {
                         console.error(`❌ Erro ao validar ${telLimpo}:`, err.message);
+                        // Se der erro na API, marcamos como invalido para não travar o loop
+                        await supabase
+                            .from('clientes')
+                            .update({ status_whatsapp: 'invalido' })
+                            .eq('id', lead.id);
                     }
 
                     // Delay para evitar bloqueio do WhatsApp
