@@ -101,10 +101,11 @@ export async function POST(request: NextRequest) {
 
         let processados = 0
         let erros = 0
+        const errosDetalhes: string[] = []
 
         // Processa um por um para garantir o merge correto (upsert)
         for (const lead of leads) {
-            const cpf = lead.cpf.replace(/\D/g, '')
+            const cpf = lead.cpf.replace(/\D/g, '').padStart(11, '0')
 
             const record: any = {
                 cpf: cpf,
@@ -113,7 +114,6 @@ export async function POST(request: NextRequest) {
                 renda: lead.renda || null,
                 score: lead.score || null,
                 telefone: lead.telefone || null,
-                // Deixa status_whatsapp como null se tiver telefone novo para o servidor local validar
                 status_whatsapp: null
             }
 
@@ -127,28 +127,38 @@ export async function POST(request: NextRequest) {
                 if (record[key] === null) delete record[key];
             });
             // Se tem telefone, forçamos o status_whatsapp para nulo para o validador pegar
-            if (lead.telefone) (record as any).status_whatsapp = null;
+            if (lead.telefone) record.status_whatsapp = null;
 
             const { error } = await supabase
                 .from('clientes')
                 .upsert(record, { onConflict: 'cpf' })
 
             if (error) {
-                console.error(`Erro no CPF ${cpf}:`, error.message)
+                const detalhe = `CPF ${cpf}: ${error.message} | code: ${error.code}`
+                console.error(detalhe)
+                errosDetalhes.push(detalhe)
                 erros++
             } else {
                 processados++
             }
         }
 
+        // Mensagem com diagnóstico completo
+        let msg = `Parseados: ${leads.length} | Sucesso: ${processados} | Erros: ${erros}`
+        if (errosDetalhes.length > 0) {
+            msg += ` | Detalhes: ${errosDetalhes.join(' ;; ')}`
+        }
+
         return NextResponse.json({
             success: true,
-            message: `${processados} leads processados (criados ou atualizados).`,
+            message: msg,
             total: leads.length,
-            erros
+            processados,
+            erros,
+            errosDetalhes
         })
     } catch (err: any) {
         console.error('Erro geral:', err)
-        return NextResponse.json({ error: 'Erro interno no servidor.' }, { status: 500 })
+        return NextResponse.json({ error: `Erro interno: ${err?.message}` }, { status: 500 })
     }
 }
