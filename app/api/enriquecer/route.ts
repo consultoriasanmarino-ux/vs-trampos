@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
     try {
         const formData = await request.formData()
         const file = formData.get('file') as File
+        const bancoId = formData.get('banco_id') as string
 
         if (!file) return NextResponse.json({ error: 'Arquivo é obrigatório.' }, { status: 400 })
 
@@ -97,7 +98,7 @@ export async function POST(request: NextRequest) {
         for (const lead of leads) {
             const cpf = lead.cpf.replace(/\D/g, '')
 
-            const record = {
+            const record: any = {
                 cpf: cpf,
                 nome: lead.nome || null,
                 data_nascimento: lead.data_nascimento || null,
@@ -108,9 +109,14 @@ export async function POST(request: NextRequest) {
                 status_whatsapp: null
             }
 
+            // Se recebemos um bancoId, associamos o lead a ele
+            if (bancoId) {
+                record.banco_principal_id = bancoId
+            }
+
             // Remove campos nulos para não sobrescrever dados existentes com vazio caso já existam
             Object.keys(record).forEach(key => {
-                if ((record as any)[key] === null) delete (record as any)[key];
+                if (record[key] === null) delete record[key];
             });
             // Se tem telefone, forçamos o status_whatsapp para nulo para o validador pegar
             if (lead.telefone) (record as any).status_whatsapp = null;

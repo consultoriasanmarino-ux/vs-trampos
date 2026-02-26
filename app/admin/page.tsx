@@ -36,6 +36,18 @@ export default function AdminDashboard() {
     useEffect(() => {
         carregarBancos()
         carregarStats()
+
+        // Inscrever no Realtime para atualizar stats quando leads mudarem (validação Baileys)
+        const channel = supabase
+            .channel('db-changes')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'clientes' }, () => {
+                carregarStats()
+            })
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
     }, [selectedBankId])
 
     const carregarBancos = async () => {
@@ -84,7 +96,7 @@ export default function AdminDashboard() {
             if (res.ok) {
                 setStatusCpf({ type: 'success', message: data.message })
                 setFileCpf(null)
-                carregarStats()
+                // carregarStats() // Realtime vai cuidar disso
             } else {
                 setStatusCpf({ type: 'error', message: data.error })
             }
@@ -104,6 +116,7 @@ export default function AdminDashboard() {
 
         const formData = new FormData()
         formData.append('file', fileEnriquecer)
+        if (selectedBankId) formData.append('banco_id', selectedBankId)
 
         try {
             const res = await fetch('/api/enriquecer', { method: 'POST', body: formData })
@@ -112,7 +125,7 @@ export default function AdminDashboard() {
             if (res.ok) {
                 setStatusEnriquecer({ type: 'success', message: data.message })
                 setFileEnriquecer(null)
-                carregarStats()
+                // carregarStats() // Realtime vai cuidar disso
             } else {
                 setStatusEnriquecer({ type: 'error', message: data.error })
             }
