@@ -160,16 +160,19 @@ export default function FichasAdminPage() {
         setEnriching(true)
         setEnrichProgress({ current: 0, total: leadsParaEnriquecer.length })
 
-        let apiUrl = localStorage.getItem('api_consulta_url') || 'https://completa.workbuscas.com/api?token=TOKEN&modulo=MODULO&consulta=DOCUMENTO'
+        let apiUrl = localStorage.getItem('api_consulta_url') || 'https://completa.workbuscas.com/api?token={TOKEN}&modulo={MODULO}&consulta={PARAMETRO}'
         let apiToken = localStorage.getItem('api_consulta_token') || 'doavTXJphHLkpayfbdNdJyGp'
+        let apiModulo = localStorage.getItem('api_consulta_modulo') || 'completa'
 
         try {
             const { data: dbConfigs } = await supabase.from('configuracoes').select('*')
             if (dbConfigs) {
                 const urlObj = dbConfigs.find(c => c.key === 'api_consulta_url')
                 const tokenObj = dbConfigs.find(c => c.key === 'api_consulta_token')
+                const moduloObj = dbConfigs.find(c => c.key === 'api_consulta_modulo')
                 if (urlObj) apiUrl = urlObj.value
                 if (tokenObj) apiToken = tokenObj.value
+                if (moduloObj) apiModulo = moduloObj.value
             }
         } catch (e) {
             console.warn('Erro ao ler configs do banco')
@@ -179,8 +182,12 @@ export default function FichasAdminPage() {
         for (const lead of leadsParaEnriquecer) {
             try {
                 const url = apiUrl
+                    .replace('{TOKEN}', apiToken)
+                    .replace('{MODULO}', apiModulo)
+                    .replace('{PARAMETRO}', lead.cpf.replace(/\D/g, ''))
+                    // Suporte a placeholders antigos para evitar quebra
                     .replace('TOKEN', apiToken)
-                    .replace('MODULO', 'completa')
+                    .replace('MODULO', apiModulo)
                     .replace('DOCUMENTO', lead.cpf.replace(/\D/g, ''))
 
                 const response = await fetch(url)

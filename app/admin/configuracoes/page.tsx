@@ -22,8 +22,9 @@ export default function ConfigPage() {
     const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
     // Form states
-    const [apiUrl, setApiUrl] = useState('https://completa.workbuscas.com/api?token=TOKEN&modulo=MODULO&consulta=DOCUMENTO')
+    const [apiUrl, setApiUrl] = useState('https://completa.workbuscas.com/api?token={TOKEN}&modulo={MODULO}&consulta={PARAMETRO}')
     const [apiToken, setApiToken] = useState('doavTXJphHLkpayfbdNdJyGp')
+    const [apiModulo, setApiModulo] = useState('completa')
 
     useEffect(() => {
         carregarConfigs()
@@ -38,15 +39,19 @@ export default function ConfigPage() {
             if (data && data.length > 0) {
                 const urlObj = data.find(c => c.key === 'api_consulta_url')
                 const tokenObj = data.find(c => c.key === 'api_consulta_token')
+                const moduloObj = data.find(c => c.key === 'api_consulta_modulo')
 
                 if (urlObj) setApiUrl(urlObj.value)
                 if (tokenObj) setApiToken(tokenObj.value)
+                if (moduloObj) setApiModulo(moduloObj.value)
             } else {
                 // Se não tiver no banco, tenta localStorage como fallback
                 const localUrl = localStorage.getItem('api_consulta_url')
                 const localToken = localStorage.getItem('api_consulta_token')
+                const localModulo = localStorage.getItem('api_consulta_modulo')
                 if (localUrl) setApiUrl(localUrl)
                 if (localToken) setApiToken(localToken)
+                if (localModulo) setApiModulo(localModulo)
             }
         } catch (err) {
             console.error('Erro ao carregar configurações:', err)
@@ -63,11 +68,13 @@ export default function ConfigPage() {
             // Salva no LocalStorage para garantir funcionamento imediato
             localStorage.setItem('api_consulta_url', apiUrl)
             localStorage.setItem('api_consulta_token', apiToken)
+            localStorage.setItem('api_consulta_modulo', apiModulo)
 
             // Tenta salvar no Supabase
             const updates = [
                 { key: 'api_consulta_url', value: apiUrl },
-                { key: 'api_consulta_token', value: apiToken }
+                { key: 'api_consulta_token', value: apiToken },
+                { key: 'api_consulta_modulo', value: apiModulo }
             ]
 
             const { error } = await supabase.from('configuracoes').upsert(updates, { onConflict: 'key' })
@@ -149,6 +156,23 @@ export default function ConfigPage() {
                                 />
                             </div>
                         </div>
+
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest pl-1">Módulo da Consulta (Ex: completa, basica)</label>
+                            <div className="relative group/input">
+                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-700 group-focus-within/input:text-white transition-colors">
+                                    <Zap size={16} />
+                                </div>
+                                <input
+                                    type="text"
+                                    value={apiModulo}
+                                    onChange={(e) => setApiModulo(e.target.value)}
+                                    placeholder="completa"
+                                    className="w-full bg-[#080808] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white placeholder-gray-800 text-sm focus:outline-none focus:ring-2 transition-all font-mono"
+                                    style={{ '--tw-ring-color': theme.primary + '33' } as any}
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -180,10 +204,23 @@ export default function ConfigPage() {
 
             <div className="mt-20 glass rounded-[2rem] p-8 border border-white/5 flex flex-col items-center text-center max-w-md mx-auto opacity-40">
                 <Database className="text-gray-700 mb-4" size={32} />
-                <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em]">Instrução Técnica</h3>
+                <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em]">Instrução Supabase SQL</h3>
                 <p className="text-[11px] text-gray-600 mt-2">
-                    Para persistência global (todos os usuários), crie a tabela <code className="bg-white/5 px-2 py-1 rounded">configuracoes</code> no seu SQL Editor do Supabase com as colunas <code className="bg-white/5 px-2 py-1 rounded">key (text PRIMARY KEY)</code> e <code className="bg-white/5 px-2 py-1 rounded">value (text)</code>.
+                    Execute isso no SQL Editor para criar a tabela necessária:
                 </p>
+                <div className="mt-4 bg-[#080808] p-4 rounded-xl border border-white/5 text-left font-mono text-[10px] text-emerald-500/80 overflow-x-auto w-full">
+                    <pre>
+                        {`CREATE TABLE configuracoes (
+  key text PRIMARY KEY,
+  value text,
+  created_at timestamp with time zone default now()
+);
+
+-- Habilitar acesso público para testes (opcional)
+ALTER TABLE configuracoes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Access" ON configuracoes FOR ALL USING (true);`}
+                    </pre>
+                </div>
             </div>
         </div>
     )
