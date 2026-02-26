@@ -26,7 +26,7 @@ export default function GerenteFichas() {
 
     const carregarDados = async () => {
         setLoading(true)
-        const { data: fichasData } = await supabase.from('clientes').select('*').eq('banco_principal_id', selectedBankId!).not('nome', 'is', null).order('created_at', { ascending: false })
+        const { data: fichasData } = await supabase.from('clientes').select('*').eq('banco_principal_id', selectedBankId!).order('created_at', { ascending: false })
         const { data: ligadoresData } = await supabase.from('ligadores').select('*').order('nome')
         if (fichasData) setFichas(fichasData)
         if (ligadoresData) setLigadores(ligadoresData)
