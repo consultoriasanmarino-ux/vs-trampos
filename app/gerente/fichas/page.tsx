@@ -1,205 +1,305 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { CreditCard, Search, RefreshCw, UserPlus, CheckCircle2, XCircle, Clock, Users, Filter, ChevronDown } from 'lucide-react'
+import {
+    Users, Search, Smartphone, Phone, AlertTriangle,
+    RefreshCw, UserPlus, ChevronDown, Check, X,
+    UserCog, Zap, CreditCard, Clock, CheckCircle2, XCircle
+} from 'lucide-react'
 import { supabase, Cliente, Ligador } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
 
 export default function GerenteFichas() {
-    const { theme, selectedBankId } = useBankTheme()
-    const [fichas, setFichas] = useState<Cliente[]>([])
-    const [ligadores, setLigadores] = useState<Ligador[]>([])
+    const { theme, selectedBankId, selectedBankName } = useBankTheme()
+    const [leads, setLeads] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [busca, setBusca] = useState('')
-    const [filtroStatus, setFiltroStatus] = useState<string>('todos')
-    const [filtroAtribuicao, setFiltroAtribuicao] = useState<string>('todos')
+    const [filtroStatus, setFiltroStatus] = useState('todos')
+    const [ligadores, setLigadores] = useState<{ id: string, nome: string }[]>([])
+    const [assigningId, setAssigningId] = useState<string | null>(null)
+    const [activeTab, setActiveTab] = useState<'atribuir' | 'andamento'>('atribuir')
 
-    // Seleção múltipla
-    const [selecionados, setSelecionados] = useState<string[]>([])
-    const [ligadorParaAtribuir, setLigadorParaAtribuir] = useState<string>('')
+    useEffect(() => {
+        carregarLigadores()
+    }, [])
 
     useEffect(() => {
         if (selectedBankId) {
-            carregarDados()
+            carregarFichas()
         }
-    }, [selectedBankId])
+    }, [selectedBankId, filtroStatus, activeTab])
 
-    const carregarDados = async () => {
+    const carregarLigadores = async () => {
+        const { data } = await supabase.from('ligadores').select('id, nome').order('nome')
+        if (data) setLigadores(data)
+    }
+
+    const carregarFichas = async () => {
         setLoading(true)
-        const { data: fichasData } = await supabase.from('clientes').select('*').eq('banco_principal_id', selectedBankId!).order('created_at', { ascending: false })
-        const { data: ligadoresData } = await supabase.from('ligadores').select('*').order('nome')
-        if (fichasData) setFichas(fichasData)
-        if (ligadoresData) setLigadores(ligadoresData)
+        let query = supabase
+            .from('clientes')
+            .select('*')
+            .eq('banco_principal_id', selectedBankId!)
+            .order('created_at', { ascending: false })
+
+        if (activeTab === 'atribuir') {
+            // Se estiver na aba ATRIBUIR, só mostra quem não tem ligador
+            query = query.is('atribuido_a', null)
+        } else {
+            // Se estiver na aba ANDAMENTO, só mostra quem JÁ TEM ligador
+            query = query.not('atribuido_a', 'is', null)
+        }
+
+        const { data } = await query
+        if (data) setLeads(data)
         setLoading(false)
     }
 
-    const fichasFiltradas = fichas.filter(f => {
-        if (busca) {
-            const termo = busca.toLowerCase()
-            if (!f.cpf?.includes(termo) && !f.nome?.toLowerCase().includes(termo)) return false
+    const handleAtribuir = async (clienteId: string, ligadorId: string | null) => {
+        setAssigningId(clienteId)
+        const { error } = await supabase
+            .from('clientes')
+            .update({ atribuido_a: ligadorId })
+            .eq('id', clienteId)
+
+        if (error) {
+            console.error('[Gerente] Erro ao atribuir:', error)
+            alert(`Erro ao atribuir: ${error.message}`)
+            setAssigningId(null)
+            return
         }
-        if (filtroStatus === 'pendente' && f.status_ficha) return false
-        if (filtroStatus === 'sucesso' && f.status_ficha !== 'concluido_sucesso') return false
-        if (filtroStatus === 'erro' && f.status_ficha !== 'concluido_erro') return false
-        if (filtroAtribuicao === 'sem_atribuicao' && f.atribuido_a) return false
-        if (filtroAtribuicao === 'com_atribuicao' && !f.atribuido_a) return false
-        return true
+
+        // Sucesso: a ficha some da lista atual para o gerente (conforme solicitado)
+        setLeads(prev => prev.filter(l => l.id !== clienteId))
+        setAssigningId(null)
+    }
+
+    const leadsFiltrados = leads.filter(c => {
+        if (!busca) return true
+        const termo = busca.toLowerCase()
+        return (c.cpf?.toLowerCase().includes(termo) ||
+            c.nome?.toLowerCase().includes(termo) ||
+            c.telefone?.includes(termo))
     })
 
-    const toggleSelecionado = (id: string) => {
-        setSelecionados(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
-    }
-
-    const selecionarTodos = () => {
-        if (selecionados.length === fichasFiltradas.length) {
-            setSelecionados([])
-        } else {
-            setSelecionados(fichasFiltradas.map(f => f.id))
+    const statusBadge = (status: string | null, telefone: string | null) => {
+        if (!status && telefone) {
+            return (
+                <span className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/10 text-purple-400 rounded-lg text-[10px] font-bold border border-purple-500/10">
+                    <RefreshCw size={12} className="animate-spin" /> ANALISANDO...
+                </span>
+            )
         }
-    }
-
-    const atribuirSelecionados = async () => {
-        if (!ligadorParaAtribuir || selecionados.length === 0) return
-        setLoading(true)
-
-        let erros = 0
-        for (const id of selecionados) {
-            const { error } = await supabase.from('clientes').update({ atribuido_a: ligadorParaAtribuir }).eq('id', id)
-            if (error) {
-                console.error(`Erro ao atribuir ${id}:`, error)
-                erros++
-            }
-        }
-
-        if (erros > 0) {
-            alert(`Atenção: ${erros} fichas não puderam ser atribuídas. Verifique se o ligador existe e se a Foreign Key está correta.`)
-        } else {
-            alert(`${selecionados.length} fichas atribuídas com sucesso!`)
-        }
-
-        setSelecionados([])
-        setLigadorParaAtribuir('')
-        carregarDados()
-    }
-
-    const getLigadorNome = (id: string | null) => {
-        if (!id) return null
-        return ligadores.find(l => l.id === id)?.nome || null
-    }
-
-    const fichaStatusBadge = (status: string | null) => {
         switch (status) {
-            case 'concluido_sucesso': return <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-full text-[9px] font-bold"><CheckCircle2 size={9} /> SUCESSO</span>
-            case 'concluido_erro': return <span className="flex items-center gap-1 px-2 py-0.5 bg-rose-500/10 text-rose-400 rounded-full text-[9px] font-bold"><XCircle size={9} /> SEM SUCESSO</span>
-            default: return <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded-full text-[9px] font-bold"><Clock size={9} /> PENDENTE</span>
+            case 'ativo': return <span className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg text-[10px] font-black border border-emerald-500/10 text-emerald-400">✅ WhatsApp</span>
+            case 'fixo': return <span className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 text-amber-400 rounded-lg text-[10px] font-bold border border-amber-500/10"><Phone size={12} /> Fixo</span>
+            case 'invalido': return <span className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 text-rose-400 rounded-lg text-[10px] font-bold border border-rose-500/10"><AlertTriangle size={12} /> Inválido</span>
+            default: return <span className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-gray-500 rounded-lg text-[10px] font-bold border border-white/10">Sem Info</span>
         }
     }
 
     return (
-        <div className="p-6 lg:p-8">
-            <div className="flex items-center justify-between mb-6">
+        <div className="p-6 lg:p-10 animate-fade-in">
+            {/* Header / Top */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
                 <div>
-                    <h1 className="text-2xl font-bold text-white tracking-tight">Fichas</h1>
-                    <p className="text-gray-600 text-sm mt-1">Gerencie e atribua fichas aos ligadores</p>
+                    <h1 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-4">
+                        Gerenciamento de Fichas
+                        <span className="text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-widest bg-violet-500/10 text-violet-400 border border-violet-500/20">
+                            {selectedBankName}
+                        </span>
+                    </h1>
+                    <p className="text-gray-500 text-sm mt-2 font-medium">
+                        {activeTab === 'atribuir' ? 'Distribua as novas fichas para sua equipe' : 'Monitore o progresso dos ligadores agora mesmo'}
+                    </p>
                 </div>
-                <button onClick={carregarDados} className="flex items-center gap-2 px-4 py-2.5 glass rounded-xl text-gray-400 hover:text-white transition-all text-sm">
-                    <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Atualizar
+                <button onClick={carregarFichas} className="glass p-3.5 rounded-2xl text-gray-400 hover:text-white transition-all group border-white/10">
+                    <RefreshCw size={20} className={loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-700'} />
                 </button>
             </div>
 
-            {/* Filtros e busca */}
-            <div className="glass rounded-2xl p-4 mb-6 border border-white/5">
-                <div className="flex flex-wrap gap-3 items-center">
-                    <div className="relative flex-1 min-w-[200px]">
-                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
-                        <input type="text" value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar por nome ou CPF..." className="w-full bg-[#080808] border border-white/5 rounded-xl py-2.5 pl-9 pr-4 text-white text-sm focus:outline-none focus:ring-2" style={{ '--tw-ring-color': theme.primary + '33' } as any} />
-                    </div>
-                    <select value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)} className="bg-[#080808] border border-white/5 rounded-xl py-2.5 px-4 text-white text-sm focus:outline-none cursor-pointer">
-                        <option value="todos">Todos os Status</option>
-                        <option value="pendente">Pendentes</option>
-                        <option value="sucesso">Sucesso</option>
-                        <option value="erro">Sem Sucesso</option>
-                    </select>
-                    <select value={filtroAtribuicao} onChange={e => setFiltroAtribuicao(e.target.value)} className="bg-[#080808] border border-white/5 rounded-xl py-2.5 px-4 text-white text-sm focus:outline-none cursor-pointer">
-                        <option value="todos">Todos</option>
-                        <option value="sem_atribuicao">Sem Ligador</option>
-                        <option value="com_atribuicao">Com Ligador</option>
-                    </select>
+            {/* Abas - Estilo Admin */}
+            <div className="flex gap-2 mb-8 p-1.5 bg-white/[0.02] rounded-2xl border border-white/5 w-fit">
+                <button
+                    onClick={() => setActiveTab('atribuir')}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'atribuir' ? 'bg-white/10 text-white shadow-lg' : 'text-gray-600 hover:text-gray-400'}`}
+                >
+                    <UserPlus size={14} /> Para Atribuir
+                </button>
+                <button
+                    onClick={() => setActiveTab('andamento')}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'andamento' ? 'bg-white/10 text-white shadow-lg' : 'text-gray-600 hover:text-gray-400'}`}
+                >
+                    <Zap size={14} /> Em Andamento
+                </button>
+            </div>
+
+            {/* Barra de Busca */}
+            <div className="mb-8 max-w-2xl">
+                <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600" size={18} />
+                    <input
+                        type="text"
+                        value={busca}
+                        onChange={(e) => setBusca(e.target.value)}
+                        placeholder="Buscar por nome, CPF ou celular..."
+                        className="w-full pl-12 pr-6 py-4 glass rounded-3xl text-white placeholder-gray-700 text-sm font-medium focus:outline-none focus:ring-2 transition-all border-white/5"
+                    />
                 </div>
             </div>
 
-            {/* Barra de atribuição */}
-            {selecionados.length > 0 && (
-                <div className="glass rounded-2xl p-4 mb-6 border border-white/5 flex flex-wrap items-center gap-4 animate-fade-in-up" style={{ borderColor: theme.primary + '33' }}>
-                    <p className="text-sm font-bold text-white">{selecionados.length} ficha(s) selecionada(s)</p>
-                    <select value={ligadorParaAtribuir} onChange={e => setLigadorParaAtribuir(e.target.value)} className="bg-[#080808] border border-white/5 rounded-xl py-2.5 px-4 text-white text-sm focus:outline-none cursor-pointer flex-1 min-w-[150px]">
-                        <option value="">Selecione um ligador...</option>
-                        {ligadores.map(l => <option key={l.id} value={l.id}>{l.nome}</option>)}
-                    </select>
-                    <button onClick={atribuirSelecionados} disabled={!ligadorParaAtribuir} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all active:scale-95 disabled:opacity-50" style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary}88)` }}>
-                        <UserPlus size={16} /> Atribuir
-                    </button>
+            {/* Conteúdo Central */}
+            {loading ? (
+                <div className="flex flex-col items-center justify-center py-32 text-gray-600">
+                    <RefreshCw size={32} className="animate-spin mb-4" />
+                    <p className="text-sm font-black uppercase tracking-widest opacity-50 text-gray-400">Sincronizando banco...</p>
+                </div>
+            ) : leadsFiltrados.length === 0 ? (
+                <div className="text-center py-40 glass rounded-[2.5rem] border border-dashed border-white/10 opacity-50">
+                    <CreditCard className="mx-auto text-gray-800 mb-6" size={60} />
+                    <p className="text-lg font-bold text-gray-500">Nenhuma ficha para mostrar</p>
+                    <p className="text-sm text-gray-700 mt-1">Selecione outro banco ou aba.</p>
+                </div>
+            ) : activeTab === 'atribuir' ? (
+                /* MODELO PREMIUM DE CARDS (IGUAL ADMIN) */
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6">
+                    {leadsFiltrados.map((c, i) => {
+                        const isAssigning = assigningId === c.id
+                        return (
+                            <div key={c.id} className="glass rounded-[2rem] p-6 card-hover animate-fade-in-up relative group border border-white/5" style={{ animationDelay: `${i * 0.03}s` }}>
+                                <div className="flex items-start justify-between mb-6">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black bg-white/5 text-white border border-white/10">
+                                            {c.nome ? c.nome.charAt(0).toUpperCase() : '?'}
+                                        </div>
+                                        <div>
+                                            <h3 className="text-sm font-black text-white truncate max-w-[120px]">{c.nome || 'Sem Nome'}</h3>
+                                            <p className="text-[10px] font-mono font-bold text-gray-600 mt-1">{c.cpf}</p>
+                                        </div>
+                                    </div>
+                                    {statusBadge(c.status_whatsapp, c.telefone)}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 mb-6">
+                                    <div className="bg-white/[0.02] rounded-2xl p-3 border border-white/5">
+                                        <p className="text-[8px] font-black text-gray-600 uppercase tracking-widest mb-1">Score</p>
+                                        <p className="text-xs font-black text-white">{c.score || '—'}</p>
+                                    </div>
+                                    <div className="bg-white/[0.02] rounded-2xl p-3 border border-white/5">
+                                        <p className="text-[8px] font-black text-gray-600 uppercase tracking-widest mb-1">Renda</p>
+                                        <p className="text-xs font-black text-white">{c.renda ? `R$ ${c.renda.toLocaleString()}` : '—'}</p>
+                                    </div>
+                                </div>
+
+                                {/* Botão de Atribuição Dentro do Card */}
+                                <div
+                                    onClick={() => setAssigningId(isAssigning ? null : c.id)}
+                                    className="bg-violet-500/5 hover:bg-violet-500/10 rounded-2xl p-4 border border-violet-500/10 cursor-pointer transition-all flex items-center justify-between"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <UserCog size={16} className="text-violet-400" />
+                                        <span className="text-[10px] font-black text-violet-400 uppercase tracking-widest">Atribuir Ficha</span>
+                                    </div>
+                                    <ChevronDown size={14} className={`text-violet-400 transition-transform ${isAssigning ? 'rotate-180' : ''}`} />
+                                </div>
+
+                                {/* Overlay de Seleção de Ligador */}
+                                {isAssigning && (
+                                    <div className="absolute inset-0 z-50 bg-[#0a0a0a] rounded-[2rem] p-4 animate-fade-in border-2 border-white/10 flex flex-col shadow-2xl">
+                                        <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/5">
+                                            <span className="text-[10px] font-black text-white uppercase tracking-widest">Escolha o Ligador</span>
+                                            <button onClick={() => setAssigningId(null)} className="p-1 hover:bg-white/10 rounded-lg transition-all"><X size={16} className="text-gray-500" /></button>
+                                        </div>
+                                        <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                                            {ligadores.map(lig => (
+                                                <button
+                                                    key={lig.id}
+                                                    onClick={() => handleAtribuir(c.id, lig.id)}
+                                                    className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all text-left group/item"
+                                                >
+                                                    <div className="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center text-xs font-black text-white">
+                                                        {lig.nome.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <span className="text-xs font-bold text-gray-300 group-hover/item:text-white">{lig.nome}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="mt-6 pt-4 border-t border-white/[0.04] flex items-center justify-between">
+                                    <span className="text-[9px] font-black text-gray-700 uppercase tracking-tighter">Entrou: {new Date(c.created_at).toLocaleDateString()}</span>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse" />
+                                        <span className="text-[9px] font-black text-violet-500 uppercase">Pendente</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            ) : (
+                /* ABA DE ANDAMENTO - MONITORAMENTO (TABELA SEM OPÇÃO DE ATRIBUIR) */
+                <div className="glass rounded-3xl border border-white/5 overflow-hidden shadow-2xl">
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead>
+                                <tr className="border-b border-white/5 bg-white/[0.01]">
+                                    <th className="p-5 text-left text-[10px] font-black text-gray-600 uppercase tracking-widest">Nome / CPF</th>
+                                    <th className="p-5 text-left text-[10px] font-black text-gray-600 uppercase tracking-widest">Ligador Atribuído</th>
+                                    <th className="p-5 text-left text-[10px] font-black text-gray-600 uppercase tracking-widest">Banco</th>
+                                    <th className="p-5 text-left text-[10px] font-black text-gray-600 uppercase tracking-widest">Status Ficha</th>
+                                    <th className="p-5 text-left text-[10px] font-black text-gray-600 uppercase tracking-widest">Data</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {leadsFiltrados.map((f) => {
+                                    const ligNome = ligadores.find(l => l.id === f.atribuido_a)?.nome || '—'
+                                    return (
+                                        <tr key={f.id} className="border-b border-white/[0.02] hover:bg-white/[0.03] transition-colors">
+                                            <td className="p-5">
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-black text-white">{f.nome || 'Sem Nome'}</span>
+                                                    <span className="text-[10px] font-mono font-bold text-gray-600">{f.cpf}</span>
+                                                </div>
+                                            </td>
+                                            <td className="p-5">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-7 h-7 rounded-lg bg-violet-500/20 flex items-center justify-center text-[10px] font-black text-violet-400 border border-violet-500/20">
+                                                        {ligNome.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <span className="text-xs font-bold text-gray-400">{ligNome}</span>
+                                                </div>
+                                            </td>
+                                            <td className="p-5">
+                                                <span className="text-[10px] font-black px-3 py-1 bg-white/5 text-gray-500 rounded-lg">{selectedBankName}</span>
+                                            </td>
+                                            <td className="p-5">
+                                                {f.status_ficha === 'concluido_sucesso' ? (
+                                                    <span className="flex items-center gap-1.5 text-[10px] font-black text-emerald-400 uppercase"><CheckCircle2 size={12} /> Sucesso</span>
+                                                ) : f.status_ficha === 'concluido_erro' ? (
+                                                    <span className="flex items-center gap-1.5 text-[10px] font-black text-rose-400 uppercase"><XCircle size={12} /> Sem Sucesso</span>
+                                                ) : (
+                                                    <span className="flex items-center gap-1.5 text-[10px] font-black text-amber-500 uppercase"><Clock size={12} /> Pendente</span>
+                                                )}
+                                            </td>
+                                            <td className="p-5 text-[10px] font-black text-gray-600">
+                                                {new Date(f.created_at).toLocaleString()}
+                                            </td>
+                                        </tr>
+                                    )
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
 
-            {/* Stats rápidos */}
-            <div className="flex gap-3 mb-6 text-[10px] font-bold text-gray-600 uppercase">
-                <span className="px-3 py-1.5 glass rounded-lg">{fichasFiltradas.length} fichas</span>
-                <span className="px-3 py-1.5 bg-emerald-500/5 rounded-lg text-emerald-500">{fichas.filter(f => f.status_ficha === 'concluido_sucesso').length} ✓ sucesso</span>
-                <span className="px-3 py-1.5 bg-rose-500/5 rounded-lg text-rose-500">{fichas.filter(f => f.status_ficha === 'concluido_erro').length} ✕ sem sucesso</span>
-                <span className="px-3 py-1.5 bg-amber-500/5 rounded-lg text-amber-500">{fichas.filter(f => !f.status_ficha).length} ● pendentes</span>
-            </div>
-
-            {/* Tabela */}
-            <div className="glass rounded-2xl border border-white/5 overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead>
-                            <tr className="border-b border-white/5">
-                                <th className="p-3 text-left">
-                                    <input type="checkbox" checked={selecionados.length === fichasFiltradas.length && fichasFiltradas.length > 0} onChange={selecionarTodos} className="rounded accent-violet-500" />
-                                </th>
-                                <th className="p-3 text-left text-[10px] font-bold text-gray-600 uppercase tracking-wider">Nome</th>
-                                <th className="p-3 text-left text-[10px] font-bold text-gray-600 uppercase tracking-wider">CPF</th>
-                                <th className="p-3 text-left text-[10px] font-bold text-gray-600 uppercase tracking-wider">Telefone</th>
-                                <th className="p-3 text-left text-[10px] font-bold text-gray-600 uppercase tracking-wider">Status</th>
-                                <th className="p-3 text-left text-[10px] font-bold text-gray-600 uppercase tracking-wider">Ligador</th>
-                                <th className="p-3 text-left text-[10px] font-bold text-gray-600 uppercase tracking-wider">Motivo</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {fichasFiltradas.slice(0, 100).map((f) => {
-                                const ligNome = getLigadorNome(f.atribuido_a)
-                                return (
-                                    <tr key={f.id} className={`border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors ${selecionados.includes(f.id) ? 'bg-white/[0.04]' : ''}`}>
-                                        <td className="p-3">
-                                            <input type="checkbox" checked={selecionados.includes(f.id)} onChange={() => toggleSelecionado(f.id)} className="rounded accent-violet-500" />
-                                        </td>
-                                        <td className="p-3 text-sm font-medium text-white">{f.nome || '—'}</td>
-                                        <td className="p-3 text-sm font-mono text-gray-500">{f.cpf}</td>
-                                        <td className="p-3 text-sm text-gray-400">{f.telefone || '—'}</td>
-                                        <td className="p-3">{fichaStatusBadge(f.status_ficha)}</td>
-                                        <td className="p-3">
-                                            {ligNome ? (
-                                                <span className="text-xs font-bold text-white px-2 py-1 rounded-lg" style={{ background: `rgba(${theme.primaryRGB}, 0.1)` }}>{ligNome}</span>
-                                            ) : (
-                                                <span className="text-xs text-gray-700 italic">Não atribuída</span>
-                                            )}
-                                        </td>
-                                        <td className="p-3 text-xs text-gray-500 max-w-[150px] truncate">{f.motivo_conclusao || '—'}</td>
-                                    </tr>
-                                )
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-                {fichasFiltradas.length === 0 && !loading && (
-                    <div className="text-center py-16">
-                        <CreditCard className="mx-auto text-gray-800 mb-4" size={40} />
-                        <p className="text-gray-500 text-sm font-medium">Nenhuma ficha encontrada</p>
-                    </div>
-                )}
-            </div>
+            <style jsx global>{`
+                .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.05); border-radius: 10px; }
+            `}</style>
         </div>
     )
 }
