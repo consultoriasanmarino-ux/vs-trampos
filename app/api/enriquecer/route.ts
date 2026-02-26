@@ -31,7 +31,9 @@ function parseTxtLeads(text: string) {
                 // Limpa e garante 11 dígitos com zeros à esquerda
                 lead.cpf = cpfRaw.replace(/\D/g, '').padStart(11, '0')
             } else if (/NASC:/i.test(line)) {
-                lead.data_nascimento = line.split(/NASC:/i)[1]?.trim()
+                const nascRaw = line.split(/NASC:/i)[1]?.trim()
+                // Converte DD/MM/YYYY para YYYY-MM-DD direto no parser
+                lead.data_nascimento = parseDateBR(nascRaw)
             } else if (/RENDA:/i.test(line)) {
                 const parts = line.split(/RENDA:/i)[1]?.trim() || ''
                 // O formato é "RENDA: 581,90 | SCORE: N/A"
