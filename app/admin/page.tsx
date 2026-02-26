@@ -118,10 +118,15 @@ export default function AdminDashboard() {
 
     const handleAutoConsultar = async () => {
         // Busca todos os leads sem nome (apenas CPF)
-        let query = supabase.from('clientes').select('*').or('nome.is.null,nome.eq.""')
+        let query = supabase.from('clientes').select('id, cpf, nome, telefone').or('nome.is.null,nome.eq.')
         if (selectedBankId) query = query.eq('banco_principal_id', selectedBankId)
 
-        const { data: leadsParaEnriquecer } = await query
+        const { data: leadsParaEnriquecer, error: queryError } = await query
+
+        if (queryError) {
+            alert('Erro ao buscar leads: ' + queryError.message)
+            return
+        }
 
         if (!leadsParaEnriquecer || leadsParaEnriquecer.length === 0) {
             alert('Não há fichas pendentes de consulta (todas já possuem nome).')
@@ -133,6 +138,7 @@ export default function AdminDashboard() {
         setEnriching(true)
         setEnrichProgress({ current: 0, total: leadsParaEnriquecer.length })
 
+        // Buscar configurações da API
         let apiUrl = localStorage.getItem('api_consulta_url') || 'https://completa.workbuscas.com/api?token={TOKEN}&modulo={MODULO}&consulta={PARAMETRO}'
         let apiToken = localStorage.getItem('api_consulta_token') || 'doavTXJphHLkpayfbdNdJyGp'
         let apiModulo = localStorage.getItem('api_consulta_modulo') || 'cpf'
@@ -151,58 +157,40 @@ export default function AdminDashboard() {
             console.warn('Erro ao ler configs do banco')
         }
 
-        let sucessos = 0
-        for (const lead of leadsParaEnriquecer) {
+        // Processar em lotes de 5 via API route server-side (evita CORS)
+        const batchSize = 5
+        let totalSucessos = 0
+
+        for (let i = 0; i < leadsParaEnriquecer.length; i += batchSize) {
+            const batch = leadsParaEnriquecer.slice(i, i + batchSize)
+
             try {
-                const cpfLimpo = lead.cpf.replace(/\D/g, '')
-                const url = apiUrl
-                    .replace('{TOKEN}', apiToken)
-                    .replace('{MODULO}', apiModulo)
-                    .replace('{PARAMETRO}', cpfLimpo)
+                const res = await fetch('/api/consulta-cpf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        cpfs: batch,
+                        apiUrl,
+                        apiToken,
+                        apiModulo
+                    })
+                })
 
-                const response = await fetch(url)
-                const result = await response.json()
+                const result = await res.json()
 
-                if (result && result.status === 200) {
-                    const basicos = result.DadosBasicos || {}
-                    const economicos = result.DadosEconomicos || {}
-                    const telefones = result.telefones || []
-
-                    // Pegar o primeiro telefone válido
-                    const telefone = telefones.length > 0 ? telefones[0].telefone : lead.telefone
-
-                    // Converter renda de string "891,66" para número
-                    const rendaStr = economicos.renda || ''
-                    const rendaNum = rendaStr ? parseFloat(rendaStr.replace('.', '').replace(',', '.')) : lead.renda
-
-                    // Score
-                    const scoreObj = economicos.score || {}
-                    const scoreVal = scoreObj.scoreCSBA || scoreObj.scoreCSB || lead.score
-
-                    const novosDados: any = {}
-                    if (basicos.nome) novosDados.nome = basicos.nome
-                    if (basicos.dataNascimento) novosDados.data_nascimento = basicos.dataNascimento
-                    if (rendaNum) novosDados.renda = String(rendaNum)
-                    if (scoreVal) novosDados.score = String(scoreVal)
-                    if (telefone && !lead.telefone) novosDados.telefone = telefone
-
-                    if (Object.keys(novosDados).length > 0) {
-                        await supabase.from('clientes').update(novosDados).eq('id', lead.id)
-                        sucessos++
-                    }
-                } else {
-                    console.warn(`CPF ${cpfLimpo}: API retornou status ${result?.status} - ${result?.reason || 'sem motivo'}`)
+                if (result.success) {
+                    totalSucessos += result.sucessos
                 }
             } catch (err) {
-                console.error(`Erro CPF ${lead.cpf}:`, err)
+                console.error('Erro no lote:', err)
             }
-            setEnrichProgress(prev => ({ ...prev, current: prev.current + 1 }))
-            await new Promise(r => setTimeout(r, 300))
+
+            setEnrichProgress({ current: Math.min(i + batchSize, leadsParaEnriquecer.length), total: leadsParaEnriquecer.length })
         }
 
         setEnriching(false)
         carregarStats()
-        alert(`Consulta finalizada! ${sucessos} fichas atualizadas com sucesso.`)
+        alert(`Consulta finalizada! ${totalSucessos} fichas atualizadas com sucesso.`)
     }
 
     return (
