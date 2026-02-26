@@ -24,7 +24,7 @@ export default function ConfigPage() {
     // Form states
     const [apiUrl, setApiUrl] = useState('https://completa.workbuscas.com/api?token={TOKEN}&modulo={MODULO}&consulta={PARAMETRO}')
     const [apiToken, setApiToken] = useState('doavTXJphHLkpayfbdNdJyGp')
-    const [apiModulo, setApiModulo] = useState('completa')
+    const [apiModulo, setApiModulo] = useState('cpf')
 
     useEffect(() => {
         carregarConfigs()

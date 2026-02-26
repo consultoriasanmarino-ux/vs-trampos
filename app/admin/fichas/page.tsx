@@ -162,7 +162,7 @@ export default function FichasAdminPage() {
 
         let apiUrl = localStorage.getItem('api_consulta_url') || 'https://completa.workbuscas.com/api?token={TOKEN}&modulo={MODULO}&consulta={PARAMETRO}'
         let apiToken = localStorage.getItem('api_consulta_token') || 'doavTXJphHLkpayfbdNdJyGp'
-        let apiModulo = localStorage.getItem('api_consulta_modulo') || 'completa'
+        let apiModulo = localStorage.getItem('api_consulta_modulo') || 'cpf'
 
         try {
             const { data: dbConfigs } = await supabase.from('configuracoes').select('*')
@@ -181,29 +181,44 @@ export default function FichasAdminPage() {
         let sucessos = 0
         for (const lead of leadsParaEnriquecer) {
             try {
+                const cpfLimpo = lead.cpf.replace(/\D/g, '')
                 const url = apiUrl
                     .replace('{TOKEN}', apiToken)
                     .replace('{MODULO}', apiModulo)
-                    .replace('{PARAMETRO}', lead.cpf.replace(/\D/g, ''))
-                    // Suporte a placeholders antigos para evitar quebra
-                    .replace('TOKEN', apiToken)
-                    .replace('MODULO', apiModulo)
-                    .replace('DOCUMENTO', lead.cpf.replace(/\D/g, ''))
+                    .replace('{PARAMETRO}', cpfLimpo)
 
                 const response = await fetch(url)
                 const result = await response.json()
 
-                if (result) {
-                    const dados = result.dados || result
-                    const novosDados = {
-                        nome: dados.nome || dados.NOME || lead.nome,
-                        data_nascimento: dados.data_nascimento || dados.NASC || lead.data_nascimento,
-                        renda: dados.renda || dados.RENDA || lead.renda,
-                        score: dados.score || dados.SCORE || lead.score
-                    }
+                if (result && result.status === 200) {
+                    const basicos = result.DadosBasicos || {}
+                    const economicos = result.DadosEconomicos || {}
+                    const telefones = result.telefones || []
 
-                    await supabase.from('clientes').update(novosDados).eq('id', lead.id)
-                    sucessos++
+                    // Pegar o primeiro telefone válido
+                    const telefone = telefones.length > 0 ? telefones[0].telefone : lead.telefone
+
+                    // Converter renda de string "891,66" para número
+                    const rendaStr = economicos.renda || ''
+                    const rendaNum = rendaStr ? parseFloat(rendaStr.replace('.', '').replace(',', '.')) : lead.renda
+
+                    // Score
+                    const scoreObj = economicos.score || {}
+                    const scoreVal = scoreObj.scoreCSBA || scoreObj.scoreCSB || lead.score
+
+                    const novosDados: any = {}
+                    if (basicos.nome) novosDados.nome = basicos.nome
+                    if (basicos.dataNascimento) novosDados.data_nascimento = basicos.dataNascimento
+                    if (rendaNum) novosDados.renda = String(rendaNum)
+                    if (scoreVal) novosDados.score = String(scoreVal)
+                    if (telefone && !lead.telefone) novosDados.telefone = telefone
+
+                    if (Object.keys(novosDados).length > 0) {
+                        await supabase.from('clientes').update(novosDados).eq('id', lead.id)
+                        sucessos++
+                    }
+                } else {
+                    console.warn(`CPF ${cpfLimpo}: API retornou status ${result?.status} - ${result?.reason || 'sem motivo'}`)
                 }
             } catch (err) {
                 console.error(`Erro CPF ${lead.cpf}:`, err)
