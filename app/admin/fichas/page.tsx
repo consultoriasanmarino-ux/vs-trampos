@@ -67,17 +67,22 @@ export default function FichasAdminPage() {
     }
 
     const handleAtribuir = async (clienteId: string, ligadorId: string | null) => {
-        // Mostra animação de 'processando' localmente se quiser, mas aqui vamos direto ao ponto
+        console.log(`[Fichas] Atribuindo cliente ${clienteId} ao ligador ${ligadorId}`)
+
         const { error } = await supabase
             .from('clientes')
             .update({ atribuido_a: ligadorId })
             .eq('id', clienteId)
 
-        if (!error) {
-            // Remove a ficha da lista após atribuir (conforme solicitado: "a ficha tem que sumir dali")
-            setLeads(prev => prev.filter(l => l.id !== clienteId))
-            setAssigningId(null)
+        if (error) {
+            console.error('[Fichas] Erro ao atribuir:', error)
+            alert(`Erro ao atribuir: ${error.message}`)
+            return
         }
+
+        // Remove a ficha da lista após atribuir (conforme solicitado: "a ficha tem que sumir dali")
+        setLeads(prev => prev.filter(l => l.id !== clienteId))
+        setAssigningId(null)
     }
 
     const handleDeletar = async (id: string) => {
@@ -560,7 +565,11 @@ export default function FichasAdminPage() {
                                                 {ligadores.map(lig => (
                                                     <button
                                                         key={lig.id}
-                                                        onClick={() => handleAtribuir(c.id, lig.id)}
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            handleAtribuir(c.id, lig.id)
+                                                        }}
                                                         className={`w-full flex items-center gap-5 px-5 py-5 rounded-[1.5rem] transition-all duration-300 group/item border ${c.atribuido_a === lig.id
                                                             ? 'bg-gradient-to-r from-emerald-600/20 to-transparent border-emerald-500/30'
                                                             : 'bg-white/5 border-white/5 hover:border-white/20 hover:scale-[1.02]'
