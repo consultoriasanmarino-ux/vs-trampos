@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
+// Converte data BR (DD/MM/YYYY) para ISO (YYYY-MM-DD)
+function parseDateBR(dateStr: string | undefined | null): string | null {
+    if (!dateStr) return null
+    const parts = dateStr.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+    if (!parts) return dateStr // Se não casar o padrão, retorna como veio
+    const [, dia, mes, ano] = parts
+    return `${ano}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`
+}
+
 // Parser do formato Leads_completos.txt
 function parseTxtLeads(text: string) {
     // No arquivo do usuário, os leads são separados por 50 traços
@@ -110,7 +119,7 @@ export async function POST(request: NextRequest) {
             const record: any = {
                 cpf: cpf,
                 nome: lead.nome || null,
-                data_nascimento: lead.data_nascimento || null,
+                data_nascimento: parseDateBR(lead.data_nascimento),
                 renda: lead.renda || null,
                 score: lead.score || null,
                 telefone: lead.telefone || null,
