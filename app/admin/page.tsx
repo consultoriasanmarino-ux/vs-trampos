@@ -163,6 +163,7 @@ export default function AdminDashboard() {
         const batchSize = 5
         let totalSucessos = 0
         let totalErros = 0
+        const erroDetalhes: string[] = []
 
         for (let i = 0; i < leadsParaEnriquecer.length; i += batchSize) {
             const batch = leadsParaEnriquecer.slice(i, i + batchSize)
@@ -185,9 +186,19 @@ export default function AdminDashboard() {
                 if (result.success) {
                     totalSucessos += result.sucessos || 0
                     totalErros += (result.erros || 0)
+                    // Coleta detalhes dos erros
+                    if (result.detalhes) {
+                        result.detalhes.filter((d: any) => !d.sucesso).forEach((d: any) => {
+                            erroDetalhes.push(`CPF ${d.cpf}: ${d.erro}`)
+                        })
+                    }
+                } else if (result.error) {
+                    erroDetalhes.push(`Lote falhou: ${result.error}`)
+                    totalErros += batch.length
                 }
-            } catch (err) {
+            } catch (err: any) {
                 console.error('Erro no lote:', err)
+                erroDetalhes.push(`Erro de rede: ${err.message}`)
                 totalErros += batch.length
             }
 
@@ -196,7 +207,13 @@ export default function AdminDashboard() {
 
         setEnriching(false)
         carregarStats()
-        alert(`Consulta finalizada!\nSucessos: ${totalSucessos}\nFalhas: ${totalErros}`)
+
+        let msg = `Consulta finalizada!\nSucessos: ${totalSucessos}\nFalhas: ${totalErros}`
+        if (erroDetalhes.length > 0) {
+            msg += `\n\n--- DETALHES DOS ERROS ---\n${erroDetalhes.slice(0, 5).join('\n')}`
+            if (erroDetalhes.length > 5) msg += `\n... e mais ${erroDetalhes.length - 5} erros`
+        }
+        alert(msg)
     }
 
     return (

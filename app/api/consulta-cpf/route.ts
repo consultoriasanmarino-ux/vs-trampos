@@ -26,70 +26,135 @@ export async function POST(request: NextRequest) {
                     .replace('{MODULO}', modulo)
                     .replace('{PARAMETRO}', cpfLimpo)
 
-                console.log(`[Proxy API] Consultando CPF: ${cpfLimpo} na URL: ${finalUrl.replace(token, '***')}`)
+                console.log(`[API] Consultando CPF ${cpfLimpo}...`)
 
-                const response = await fetch(finalUrl, { cache: 'no-store' })
-                const result = await response.json()
-
-                console.log(`[Proxy API] Resposta para ${cpfLimpo}:`, JSON.stringify(result).substring(0, 200))
-
-                // Verifica status 200 (numérico ou string)
-                if (result && (result.status == 200 || result.status == "200" || result.Status == 200)) {
-                    const basicos = result.DadosBasicos || {}
-                    const economicos = result.DadosEconomicos || {}
-                    const telefones = result.telefones || result.Telefones || []
-
-                    // Primeiro telefone válido
-                    const telefone = telefones.length > 0 ? (telefones[0].telefone || telefones[0].Telefone) : null
-
-                    // Converter renda "891,66" para número
-                    const rendaStr = String(economicos.renda || economicos.Renda || '')
-                    const rendaNum = rendaStr ? parseFloat(rendaStr.replace(/\./g, '').replace(',', '.')) : null
-
-                    // Score
-                    const scoreObj = economicos.score || economicos.Score || {}
-                    const scoreVal = scoreObj.scoreCSBA || scoreObj.scoreCSB || scoreObj.ScoreCSBA || null
-
-                    // Montar dados para atualizar
-                    const novosDados: Record<string, any> = {}
-                    if (basicos.nome || basicos.Nome) novosDados.nome = basicos.nome || basicos.Nome
-                    if (basicos.dataNascimento || basicos.DataNascimento) novosDados.data_nascimento = basicos.dataNascimento || basicos.DataNascimento
-                    if (rendaNum) novosDados.renda = String(rendaNum)
-                    if (scoreVal) novosDados.score = String(scoreVal)
-                    if (telefone) novosDados.telefone = telefone
-                    if (basicos.nomeMae || basicos.NomeMae) novosDados.nome_mae = basicos.nomeMae || basicos.NomeMae
-
-                    if (Object.keys(novosDados).length > 0) {
-                        const { error: updateError } = await supabase
-                            .from('clientes')
-                            .update(novosDados)
-                            .eq('id', clienteId)
-
-                        if (updateError) {
-                            console.error(`[Proxy API] Erro ao atualizar Supabase para ${cpfLimpo}:`, updateError)
-                            resultados.push({ cpf: cpfLimpo, sucesso: false, erro: updateError.message })
-                        } else {
-                            resultados.push({ cpf: cpfLimpo, sucesso: true, dados: novosDados })
-                        }
-                    } else {
-                        resultados.push({ cpf: cpfLimpo, sucesso: false, erro: 'API retornou dados mas nenhum campo útil encontrado' })
+                const response = await fetch(finalUrl, {
+                    method: 'GET',
+                    cache: 'no-store',
+                    headers: {
+                        'Accept': 'application/json',
+                        'User-Agent': 'Mozilla/5.0'
                     }
-                } else {
-                    const erroMsg = result?.reason || result?.statusMsg || result?.StatusMsg || 'erro desconhecido'
-                    console.warn(`[Proxy API] Falha na consulta ${cpfLimpo}: Status ${result?.status} - ${erroMsg}`)
+                })
+
+                // Pega o texto bruto primeiro para evitar crash no .json()
+                const rawText = await response.text()
+                console.log(`[API] Status HTTP: ${response.status} | Resposta (100 chars): ${rawText.substring(0, 100)}`)
+
+                // Se o HTTP retornou erro
+                if (!response.ok) {
                     resultados.push({
                         cpf: cpfLimpo,
                         sucesso: false,
-                        erro: `API status ${result?.status}: ${erroMsg}`
+                        erro: `HTTP ${response.status}: ${rawText.substring(0, 150)}`
                     })
+                    continue
                 }
+
+                // Tenta parsear o JSON
+                let result: any
+                try {
+                    result = JSON.parse(rawText)
+                } catch (parseError) {
+                    resultados.push({
+                        cpf: cpfLimpo,
+                        sucesso: false,
+                        erro: `Resposta não é JSON válido: ${rawText.substring(0, 100)}`
+                    })
+                    continue
+                }
+
+                console.log(`[API] JSON parsed OK. Status interno: ${result.status || result.Status || 'sem status'}`)
+
+                // Aceitar qualquer variação de status 200
+                const apiStatus = Number(result.status || result.Status || 0)
+
+                if (apiStatus !== 200) {
+                    const reason = result.reason || result.statusMsg || result.StatusMsg || result.message || JSON.stringify(result).substring(0, 100)
+                    resultados.push({
+                        cpf: cpfLimpo,
+                        sucesso: false,
+                        erro: `API status ${apiStatus}: ${reason}`
+                    })
+                    continue
+                }
+
+                // === EXTRAIR DADOS ===
+                // Tenta múltiplas variações de nomes de campos
+                const basicos = result.DadosBasicos || result.dadosBasicos || result.dados_basicos || {}
+                const economicos = result.DadosEconomicos || result.dadosEconomicos || result.dados_economicos || {}
+                const telefones = result.telefones || result.Telefones || result.phones || []
+
+                // Nome
+                const nome = basicos.nome || basicos.Nome || basicos.name || null
+
+                // Data de nascimento
+                const dataNasc = basicos.dataNascimento || basicos.DataNascimento || basicos.data_nascimento || basicos.nascimento || null
+
+                // Telefone - pega o primeiro disponível
+                let telefone = null
+                if (Array.isArray(telefones) && telefones.length > 0) {
+                    const tel = telefones[0]
+                    telefone = tel.telefone || tel.Telefone || tel.phone || tel.numero || (typeof tel === 'string' ? tel : null)
+                }
+
+                // Renda
+                const rendaRaw = economicos.renda || economicos.Renda || economicos.income || ''
+                let rendaNum: number | null = null
+                if (rendaRaw) {
+                    const rendaStr = String(rendaRaw)
+                    rendaNum = parseFloat(rendaStr.replace(/\./g, '').replace(',', '.'))
+                    if (isNaN(rendaNum)) rendaNum = null
+                }
+
+                // Score
+                const scoreObj = economicos.score || economicos.Score || {}
+                const scoreVal = scoreObj.scoreCSBA || scoreObj.scoreCSB || scoreObj.ScoreCSBA || scoreObj.score || null
+
+                // Nome da mãe
+                const nomeMae = basicos.nomeMae || basicos.NomeMae || basicos.nome_mae || null
+
+                // Montar update
+                const novosDados: Record<string, any> = {}
+                if (nome) novosDados.nome = nome
+                if (dataNasc) novosDados.data_nascimento = dataNasc
+                if (rendaNum !== null) novosDados.renda = String(rendaNum)
+                if (scoreVal) novosDados.score = String(scoreVal)
+                if (telefone) novosDados.telefone = String(telefone)
+                if (nomeMae) novosDados.nome_mae = nomeMae
+
+                console.log(`[API] CPF ${cpfLimpo} => Dados extraídos:`, JSON.stringify(novosDados))
+
+                if (Object.keys(novosDados).length === 0) {
+                    resultados.push({
+                        cpf: cpfLimpo,
+                        sucesso: false,
+                        erro: `API retornou status 200 mas nenhum campo útil. Keys na resposta: ${Object.keys(result).join(', ')}`
+                    })
+                    continue
+                }
+
+                // Atualizar no Supabase
+                const { error: updateError } = await supabase
+                    .from('clientes')
+                    .update(novosDados)
+                    .eq('id', clienteId)
+
+                if (updateError) {
+                    console.error(`[API] Erro Supabase para ${cpfLimpo}:`, updateError)
+                    resultados.push({ cpf: cpfLimpo, sucesso: false, erro: `Supabase: ${updateError.message}` })
+                } else {
+                    console.log(`[API] ✅ CPF ${cpfLimpo} atualizado com sucesso!`)
+                    resultados.push({ cpf: cpfLimpo, sucesso: true, dados: novosDados })
+                }
+
             } catch (err: any) {
-                console.error(`[Proxy API] Erro fatal na consulta ${cpfItem.cpf}:`, err)
-                resultados.push({ cpf: cpfLimpo, sucesso: false, erro: err.message })
+                console.error(`[API] ❌ Erro fatal para CPF ${cpfLimpo}:`, err)
+                resultados.push({ cpf: cpfLimpo, sucesso: false, erro: `Erro de conexão: ${err.message}` })
             }
 
-            // Delay entre consultas para não sobrecarregar a API
-            await new Promise(r => setTimeout(r, 400))
+            // Delay entre consultas
+            await new Promise(r => setTimeout(r, 500))
         }
 
         const sucessos = resultados.filter(r => r.sucesso).length
@@ -103,7 +168,7 @@ export async function POST(request: NextRequest) {
             detalhes: resultados
         })
     } catch (err: any) {
-        console.error('Erro na consulta de CPFs:', err)
+        console.error('Erro geral na rota de consulta:', err)
         return NextResponse.json({ error: `Erro interno: ${err?.message || 'desconhecido'}` }, { status: 500 })
     }
 }
