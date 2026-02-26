@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import {
     Users, Search, Smartphone, Phone, AlertTriangle,
     CreditCard, TrendingUp, Star, Landmark, Zap, Lock, AlertCircle, RefreshCw,
-    Calendar, UserCheck, ShieldCheck, MapPin, DollarSign, ExternalLink
+    Calendar, UserCheck, ShieldCheck, MapPin, DollarSign, ExternalLink,
+    CheckCircle2, XCircle, MessageSquare, X
 } from 'lucide-react'
 import { supabase, Cliente, Banco } from '@/lib/supabase'
 import { themeFromColor } from '@/lib/bank-theme'
@@ -19,6 +20,12 @@ export default function LigadorPage() {
     const [loadingBancos, setLoadingBancos] = useState(true)
     const [userId, setUserId] = useState<string | null>(null)
     const [statusSemFichas, setStatusSemFichas] = useState(false)
+
+    // Modal de conclusão
+    const [concluirModal, setConcluirModal] = useState<{ id: string; nome: string } | null>(null)
+    const [concluirTipo, setConcluirTipo] = useState<'concluido_sucesso' | 'concluido_erro' | null>(null)
+    const [concluirMotivo, setConcluirMotivo] = useState('')
+    const [salvandoConclusao, setSalvandoConclusao] = useState(false)
 
     // Pegar o ID do ligador do cookie
     useEffect(() => {
@@ -106,6 +113,37 @@ export default function LigadorPage() {
     })
 
     const theme = bancoSelecionado ? themeFromColor(bancoSelecionado.cor) : null
+
+    const handleConcluir = async () => {
+        if (!concluirModal || !concluirTipo) return
+        setSalvandoConclusao(true)
+        try {
+            await supabase.from('clientes').update({
+                status_ficha: concluirTipo,
+                motivo_conclusao: concluirMotivo || (concluirTipo === 'concluido_sucesso' ? 'Concluído com sucesso' : 'Sem sucesso'),
+                concluido_em: new Date().toISOString()
+            }).eq('id', concluirModal.id)
+
+            setConcluirModal(null)
+            setConcluirTipo(null)
+            setConcluirMotivo('')
+            carregarClientes()
+        } catch (err) {
+            console.error('Erro ao concluir ficha:', err)
+        }
+        setSalvandoConclusao(false)
+    }
+
+    const fichaStatusBadge = (statusFicha: string | null) => {
+        switch (statusFicha) {
+            case 'concluido_sucesso':
+                return <span className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 text-emerald-400 rounded-full text-[10px] font-bold border border-emerald-500/10"><CheckCircle2 size={10} /> SUCESSO</span>
+            case 'concluido_erro':
+                return <span className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-500/10 text-rose-400 rounded-full text-[10px] font-bold border border-rose-500/10"><XCircle size={10} /> SEM SUCESSO</span>
+            default:
+                return <span className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 text-amber-400 rounded-full text-[10px] font-bold border border-amber-500/10">● PENDENTE</span>
+        }
+    }
 
     const statusBadge = (status: string | null, telefone: string | null) => {
         if (!status && telefone) {
@@ -403,8 +441,72 @@ export default function LigadorPage() {
                                     <p className="text-xs font-medium text-gray-600 italic">Telefone não disponível</p>
                                 </div>
                             )}
+
+                            {/* Status da Ficha + Botão Concluir */}
+                            <div className="mt-4 flex items-center justify-between">
+                                {fichaStatusBadge((c as any).status_ficha)}
+                                {!(c as any).status_ficha && (
+                                    <button
+                                        onClick={() => setConcluirModal({ id: c.id, nome: c.nome || 'Sem Nome' })}
+                                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all active:scale-95 hover:shadow-lg"
+                                        style={{ background: `linear-gradient(135deg, ${theme!.primary}, ${theme!.primary}88)` }}
+                                    >
+                                        <CheckCircle2 size={14} /> Concluir
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     ))}
+                </div>
+            )}
+
+            {/* ===== MODAL DE CONCLUSÃO ===== */}
+            {concluirModal && (
+                <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+                    <div className="glass-strong rounded-3xl p-8 max-w-md w-full animate-fade-in-up relative">
+                        <button onClick={() => { setConcluirModal(null); setConcluirTipo(null); setConcluirMotivo('') }} className="absolute top-4 right-4 p-2 rounded-xl text-gray-500 hover:text-white hover:bg-white/10 transition-all">
+                            <X size={18} />
+                        </button>
+
+                        <h3 className="text-lg font-bold text-white mb-1">Concluir Ficha</h3>
+                        <p className="text-sm text-gray-500 mb-6">Como foi o contato com <span className="text-white font-bold">{concluirModal.nome}</span>?</p>
+
+                        <div className="grid grid-cols-2 gap-3 mb-6">
+                            <button
+                                onClick={() => setConcluirTipo('concluido_sucesso')}
+                                className={`p-5 rounded-2xl border-2 transition-all flex flex-col items-center gap-3 ${concluirTipo === 'concluido_sucesso' ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.04]'}`}
+                            >
+                                <CheckCircle2 size={28} className={concluirTipo === 'concluido_sucesso' ? 'text-emerald-400' : 'text-gray-600'} />
+                                <span className={`text-sm font-bold ${concluirTipo === 'concluido_sucesso' ? 'text-emerald-400' : 'text-gray-500'}`}>Deu Certo!</span>
+                            </button>
+                            <button
+                                onClick={() => setConcluirTipo('concluido_erro')}
+                                className={`p-5 rounded-2xl border-2 transition-all flex flex-col items-center gap-3 ${concluirTipo === 'concluido_erro' ? 'border-rose-500 bg-rose-500/10' : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.04]'}`}
+                            >
+                                <XCircle size={28} className={concluirTipo === 'concluido_erro' ? 'text-rose-400' : 'text-gray-600'} />
+                                <span className={`text-sm font-bold ${concluirTipo === 'concluido_erro' ? 'text-rose-400' : 'text-gray-500'}`}>Não Deu</span>
+                            </button>
+                        </div>
+
+                        <div className="mb-6">
+                            <label className="text-[10px] font-bold text-gray-600 uppercase tracking-wider mb-2 block">Motivo / Observação</label>
+                            <textarea
+                                value={concluirMotivo}
+                                onChange={(e) => setConcluirMotivo(e.target.value)}
+                                placeholder="Descreva o resultado do contato..."
+                                className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl py-3 px-4 text-white placeholder-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40 resize-none h-24"
+                            />
+                        </div>
+
+                        <button
+                            onClick={handleConcluir}
+                            disabled={!concluirTipo || salvandoConclusao}
+                            className="w-full py-4 rounded-2xl font-bold text-white text-sm uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50"
+                            style={{ background: concluirTipo === 'concluido_sucesso' ? 'linear-gradient(135deg, #22c55e, #16a34a)' : concluirTipo === 'concluido_erro' ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'rgba(255,255,255,0.1)' }}
+                        >
+                            {salvandoConclusao ? 'Salvando...' : 'Confirmar Conclusão'}
+                        </button>
+                    </div>
                 </div>
             )}
         </div>

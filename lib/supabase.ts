@@ -24,11 +24,22 @@ export interface Cliente {
     status_whatsapp: 'ativo' | 'fixo' | 'invalido' | null
     telefone: string | null
     atribuido_a: string | null
+    status_ficha: 'pendente' | 'concluido_sucesso' | 'concluido_erro' | null
+    motivo_conclusao: string | null
+    concluido_em: string | null
     created_at: string
     bancos?: Banco
 }
 
 export interface Ligador {
+    id: string
+    nome: string
+    login: string
+    senha_hash: string
+    created_at: string
+}
+
+export interface Gerente {
     id: string
     nome: string
     login: string

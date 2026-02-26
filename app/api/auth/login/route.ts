@@ -46,39 +46,66 @@ export async function POST(request: NextRequest) {
             .eq('login', username)
             .single()
 
-        if (error || !ligador) {
-            return NextResponse.json({ error: 'Credenciais inválidas.' }, { status: 401 })
+        if (ligador && ligador.senha_hash === password) {
+            const response = NextResponse.json({ success: true, role: 'ligador', nome: ligador.nome })
+            response.cookies.set('vs_token', 'ligador_session_' + Date.now(), {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'lax',
+                maxAge: 60 * 60 * 24,
+                path: '/',
+            })
+            response.cookies.set('vs_role', 'ligador', {
+                httpOnly: false,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'lax',
+                maxAge: 60 * 60 * 24,
+                path: '/',
+            })
+            response.cookies.set('vs_user_id', ligador.id, {
+                httpOnly: false,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'lax',
+                maxAge: 60 * 60 * 24,
+                path: '/',
+            })
+            return response
         }
 
-        // Comparação simples de senha (em produção, usar bcrypt)
-        if (ligador.senha_hash !== password) {
-            return NextResponse.json({ error: 'Credenciais inválidas.' }, { status: 401 })
+        // Verifica se é um gerente
+        const { data: gerente } = await supabase
+            .from('gerentes')
+            .select('*')
+            .eq('login', username)
+            .single()
+
+        if (gerente && gerente.senha_hash === password) {
+            const response = NextResponse.json({ success: true, role: 'gerente', nome: gerente.nome })
+            response.cookies.set('vs_token', 'gerente_session_' + Date.now(), {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'lax',
+                maxAge: 60 * 60 * 24,
+                path: '/',
+            })
+            response.cookies.set('vs_role', 'gerente', {
+                httpOnly: false,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'lax',
+                maxAge: 60 * 60 * 24,
+                path: '/',
+            })
+            response.cookies.set('vs_user_id', gerente.id, {
+                httpOnly: false,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'lax',
+                maxAge: 60 * 60 * 24,
+                path: '/',
+            })
+            return response
         }
 
-        const response = NextResponse.json({ success: true, role: 'ligador', nome: ligador.nome })
-        response.cookies.set('vs_token', 'ligador_session_' + Date.now(), {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            maxAge: 60 * 60 * 24,
-            path: '/',
-        })
-        response.cookies.set('vs_role', 'ligador', {
-            httpOnly: false,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            maxAge: 60 * 60 * 24,
-            path: '/',
-        })
-        response.cookies.set('vs_user_id', ligador.id, {
-            httpOnly: false,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            maxAge: 60 * 60 * 24,
-            path: '/',
-        })
-
-        return response
+        return NextResponse.json({ error: 'Credenciais inválidas.' }, { status: 401 })
     } catch {
         return NextResponse.json({ error: 'Erro interno no servidor.' }, { status: 500 })
     }

@@ -29,6 +29,8 @@ export default function LoginPage() {
             if (res.ok && data.success) {
                 if (data.role === 'admin') {
                     router.push('/admin')
+                } else if (data.role === 'gerente') {
+                    router.push('/gerente')
                 } else {
                     router.push('/ligador')
                 }
