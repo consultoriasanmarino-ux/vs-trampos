@@ -470,6 +470,7 @@ export default function FichasAdminPage() {
                                         <div
                                             onClick={(e) => {
                                                 e.stopPropagation()
+                                                if (!isAssigning) carregarLigadores()
                                                 setAssigningId(isAssigning ? null : c.id)
                                             }}
                                             className="glass-light rounded-2xl p-4 border border-white/5 md:col-span-1 lg:col-span-2 flex flex-col justify-between relative overflow-hidden group/attr cursor-pointer hover:bg-white/5 transition-colors"
