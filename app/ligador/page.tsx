@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
     Users, Search, Smartphone, Phone, AlertTriangle,
-    CreditCard, TrendingUp, Star, Landmark, Zap, Lock
+    CreditCard, TrendingUp, Star, Landmark, Zap, Lock, AlertCircle, RefreshCw
 } from 'lucide-react'
 import { supabase, Cliente, Banco } from '@/lib/supabase'
 import { themeFromColor } from '@/lib/bank-theme'
@@ -11,12 +11,13 @@ import { themeFromColor } from '@/lib/bank-theme'
 export default function LigadorPage() {
     const [clientes, setClientes] = useState<Cliente[]>([])
     const [bancos, setBancos] = useState<Banco[]>([])
-    const [bancosComFichas, setBancosComFichas] = useState<Set<string>>(new Set())
+    const [bancosComFichas, setBancosComFichas] = useState<{ id: string, count: number }[]>([])
     const [bancoSelecionado, setBancoSelecionado] = useState<Banco | null>(null)
     const [busca, setBusca] = useState('')
     const [loading, setLoading] = useState(false)
     const [loadingBancos, setLoadingBancos] = useState(true)
     const [userId, setUserId] = useState<string | null>(null)
+    const [statusSemFichas, setStatusSemFichas] = useState(false)
 
     // Pegar o ID do ligador do cookie
     useEffect(() => {
@@ -35,23 +36,45 @@ export default function LigadorPage() {
 
     const carregarBancos = async () => {
         setLoadingBancos(true)
+        setStatusSemFichas(false)
 
-        // Carregar todos os bancos
-        const { data: bancosData } = await supabase.from('bancos').select('*').order('nome')
-        if (bancosData) setBancos(bancosData)
+        try {
+            // Carregar todos os bancos
+            const { data: bancosData } = await supabase.from('bancos').select('*').order('nome')
 
-        // Verificar quais bancos têm fichas atribuídas a este ligador
-        const { data: fichasData } = await supabase
-            .from('clientes')
-            .select('banco_principal_id')
-            .eq('atribuido_a', userId!)
+            // Verificar contagem de fichas por banco para este ligador
+            const { data: fichasData } = await supabase
+                .from('clientes')
+                .select('banco_principal_id')
+                .eq('atribuido_a', userId!)
 
-        if (fichasData) {
-            const ids = new Set(fichasData.map(f => f.banco_principal_id).filter(Boolean) as string[])
-            setBancosComFichas(ids)
+            if (fichasData && bancosData) {
+                // Conta quantas fichas cada banco tem
+                const countsMap: Record<string, number> = {}
+                fichasData.forEach(f => {
+                    if (f.banco_principal_id) {
+                        countsMap[f.banco_principal_id] = (countsMap[f.banco_principal_id] || 0) + 1
+                    }
+                })
+
+                const bancosComContagem = Object.entries(countsMap).map(([id, count]) => ({ id, count }))
+                setBancosComFichas(bancosComContagem)
+                setBancos(bancosData)
+
+                if (bancosComContagem.length === 0) {
+                    setStatusSemFichas(true)
+                } else {
+                    // Seleciona automaticamente o banco com mais fichas
+                    const maior = bancosComContagem.sort((a, b) => b.count - a.count)[0]
+                    const banco = bancosData.find(b => b.id === maior.id)
+                    if (banco) setBancoSelecionado(banco)
+                }
+            }
+        } catch (err) {
+            console.error('Erro ao carregar bancos:', err)
+        } finally {
+            setLoadingBancos(false)
         }
-
-        setLoadingBancos(false)
     }
 
     // Carregar clientes quando selecionar banco
@@ -112,6 +135,33 @@ export default function LigadorPage() {
         }
     }
 
+    // ===== TELA DE SEM FICHAS =====
+    if (statusSemFichas) {
+        return (
+            <div className="flex items-center justify-center min-h-[70vh] animate-fade-in">
+                <div className="glass-strong rounded-3xl p-10 max-w-sm w-full text-center">
+                    <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 bg-red-500/10 border border-red-500/20">
+                        <AlertCircle size={40} className="text-red-500" />
+                    </div>
+                    <h2 className="text-xl font-bold text-white mb-2">Sem Fichas Disponíveis</h2>
+                    <p className="text-sm text-gray-500 mb-8 leading-relaxed">
+                        Você não possui fichas atribuídas para nenhum banco no momento.
+                    </p>
+                    <div className="p-4 bg-white/5 rounded-2xl mb-8 border border-white/5">
+                        <p className="text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-2">O que fazer?</p>
+                        <p className="text-xs text-white">Entre em contato com o Gerente <span className="text-violet-400 font-bold">(VS)</span> para solicitar novas cargas de leads.</p>
+                    </div>
+                    <button
+                        onClick={() => carregarBancos()}
+                        className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm font-bold transition-all border border-white/10"
+                    >
+                        <RefreshCw size={16} className={loadingBancos ? 'animate-spin' : ''} /> Ver novamente
+                    </button>
+                </div>
+            </div>
+        )
+    }
+
     // ===== TELA DE SELEÇÃO DE BANCO =====
     if (!bancoSelecionado) {
         return (
@@ -128,7 +178,9 @@ export default function LigadorPage() {
                     ) : (
                         <div className="space-y-2">
                             {bancos.map((banco) => {
-                                const temFichas = bancosComFichas.has(banco.id)
+                                const fichaInfo = bancosComFichas.find(f => f.id === banco.id)
+                                const count = fichaInfo?.count || 0
+                                const temFichas = count > 0
                                 const bancoTheme = themeFromColor(banco.cor)
                                 return (
                                     <button
@@ -158,7 +210,7 @@ export default function LigadorPage() {
                                                 background: `rgba(${bancoTheme.primaryRGB}, 0.1)`,
                                                 color: bancoTheme.primary,
                                             }}>
-                                                Fichas disponíveis
+                                                {count} Fichas
                                             </span>
                                         ) : (
                                             <span className="flex items-center gap-1 text-[10px] text-gray-700 font-medium">
@@ -185,7 +237,7 @@ export default function LigadorPage() {
             <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-4">
                     <button
-                        onClick={() => { setBancoSelecionado(null); setClientes([]) }}
+                        onClick={() => { setBancoSelecionado(null); }}
                         className="glass px-4 py-2.5 rounded-xl text-sm text-gray-400 hover:text-white transition-all flex items-center gap-2"
                     >
                         ← Trocar Banco

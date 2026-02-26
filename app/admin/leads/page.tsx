@@ -57,6 +57,7 @@ export default function LeadsPage() {
         if (!error) {
             setClientes([])
             setConfirmDeleteAll(false)
+            alert('Todos os leads foram removidos do banco de dados com sucesso.')
         } else {
             alert('Erro ao apagar leads: ' + error.message)
         }

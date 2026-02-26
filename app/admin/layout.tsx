@@ -36,10 +36,24 @@ function AdminContent({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         const carregarBancos = async () => {
             const { data } = await supabase.from('bancos').select('*').order('nome')
-            if (data) setBancos(data)
+            if (data && data.length > 0) {
+                setBancos(data)
+
+                // Se não tiver banco selecionado, tenta selecionar Nubank ou o primeiro
+                if (!selectedBankId) {
+                    const nubank = data.find(b => b.nome.toLowerCase().includes('nubank'))
+                    if (nubank) {
+                        setSelectedBank(nubank.id, nubank.nome, nubank.cor)
+                    } else {
+                        setSelectedBank(data[0].id, data[0].nome, data[0].cor)
+                    }
+                }
+            } else if (data) {
+                setBancos(data)
+            }
         }
         carregarBancos()
-    }, [])
+    }, [selectedBankId])
 
     // Fechar dropdown ao clicar fora
     useEffect(() => {
