@@ -76,7 +76,12 @@ export default function FichasAdminPage() {
 
         if (error) {
             console.error('[Fichas] Erro ao atribuir:', error)
-            alert(`Erro ao atribuir: ${error.message}`)
+            if (error.message.includes('atribuido_a_fkey')) {
+                alert('Erro de Sincronia: O ligador selecionado não foi encontrado no banco. A lista será atualizada agora, por favor tente novamente.')
+                carregarLigadores() // Força atualização da lista
+            } else {
+                alert(`Erro ao atribuir: ${error.message}`)
+            }
             return
         }
 
