@@ -53,9 +53,13 @@ function parseTxtLeads(text: string) {
                 const parts = line.split(':')
                 const telsStr = parts.slice(1).join(':').trim()
                 if (telsStr && telsStr !== 'Nenhum' && telsStr !== 'N/A') {
-                    const firstTel = telsStr.split(',')[0].trim()
-                    const cleanTel = firstTel.replace(/\D/g, '')
-                    if (cleanTel) lead.telefone = cleanTel
+                    // Salva TODOS os telefones separados por vírgula (limpos)
+                    const allTels = telsStr.split(',')
+                        .map((t: string) => t.trim())
+                        .filter((t: string) => t.length > 0)
+                    if (allTels.length > 0) {
+                        lead.telefone = allTels.join(', ')
+                    }
                 }
             }
         }

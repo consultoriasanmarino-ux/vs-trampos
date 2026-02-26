@@ -63,53 +63,72 @@ async function validarNumerosPendentes(sock) {
                 .select('id, telefone')
                 .is('status_whatsapp', null)
                 .not('telefone', 'is', null)
-                .limit(10); // Processa de 10 em 10 para não ser banido
+                .limit(5);
 
             if (error) throw error;
 
             if (leads && leads.length > 0) {
-                console.log(`🔍 Validando bloco de ${leads.length} números...`);
+                console.log(`🔍 Validando bloco de ${leads.length} leads...`);
 
                 for (const lead of leads) {
-                    const telLimpo = lead.telefone.replace(/\D/g, '');
-                    const jid = `55${telLimpo}@s.whatsapp.net`;
+                    // Pode ter múltiplos números separados por vírgula
+                    const telefones = lead.telefone.split(',').map(t => t.trim()).filter(Boolean);
 
-                    try {
-                        // Verifica no WhatsApp se o número existe
-                        const results = await sock.onWhatsApp(jid);
-                        const result = results[0];
+                    let temWhatsapp = false;
+                    let temFixo = false;
+                    const resultados = [];
 
-                        let status = 'invalido';
-                        if (result?.exists) {
-                            status = 'ativo';
-                        } else {
-                            // Se não existe, tenta classificar se é fixo ou inválido pelo tamanho
-                            // 10 dígitos (DDD + 8 números) = provável Fixo
-                            // 11 dígitos (DDD + 9 números) = provável Celular Inválido
-                            if (telLimpo.length === 10) {
-                                status = 'fixo';
+                    for (const tel of telefones) {
+                        const telLimpo = tel.replace(/\D/g, '');
+                        if (!telLimpo) continue;
+
+                        // Adiciona 55 se não tiver
+                        const numero = telLimpo.startsWith('55') ? telLimpo : `55${telLimpo}`;
+                        const jid = `${numero}@s.whatsapp.net`;
+
+                        try {
+                            const results = await sock.onWhatsApp(jid);
+                            const result = results[0];
+
+                            if (result?.exists) {
+                                temWhatsapp = true;
+                                resultados.push(`${tel} ✅`);
+                                console.log(`  ✅ ${tel}: ATIVO (WhatsApp)`);
                             } else {
-                                status = 'invalido';
+                                // Classifica: 10 dígitos sem DDD55 = fixo, senão inválido
+                                if (telLimpo.length === 10) {
+                                    temFixo = true;
+                                    resultados.push(`${tel} ☎️`);
+                                    console.log(`  📞 ${tel}: FIXO`);
+                                } else {
+                                    resultados.push(`${tel} ❌`);
+                                    console.log(`  ❌ ${tel}: INVÁLIDO`);
+                                }
                             }
+                        } catch (err) {
+                            resultados.push(`${tel} ❌`);
+                            console.error(`  ❌ Erro ao validar ${tel}:`, err.message);
                         }
 
-                        await supabase
-                            .from('clientes')
-                            .update({ status_whatsapp: status })
-                            .eq('id', lead.id);
-
-                        console.log(`✅ Número ${telLimpo}: ${status.toUpperCase()}${result?.exists ? ' (WhatsApp)' : ''}`);
-                    } catch (err) {
-                        console.error(`❌ Erro ao validar ${telLimpo}:`, err.message);
-                        // Se der erro na API, marcamos como invalido para não travar o loop
-                        await supabase
-                            .from('clientes')
-                            .update({ status_whatsapp: 'invalido' })
-                            .eq('id', lead.id);
+                        // Delay entre cada número para evitar ban
+                        await new Promise(r => setTimeout(r, 1500));
                     }
 
-                    // Delay para evitar bloqueio do WhatsApp
-                    await new Promise(r => setTimeout(r, 2000));
+                    // Define status geral do lead
+                    let statusGeral = 'invalido';
+                    if (temWhatsapp) {
+                        statusGeral = 'ativo';
+                    } else if (temFixo) {
+                        statusGeral = 'fixo';
+                    }
+
+                    // Atualiza no banco com o status geral
+                    await supabase
+                        .from('clientes')
+                        .update({ status_whatsapp: statusGeral })
+                        .eq('id', lead.id);
+
+                    console.log(`📋 Lead ${lead.id.substring(0, 8)}: ${statusGeral.toUpperCase()} (${resultados.join(', ')})`);
                 }
             }
         } catch (err) {
