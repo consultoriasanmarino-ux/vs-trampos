@@ -105,11 +105,17 @@ export async function POST(request: NextRequest) {
 
                 console.log(`[API] CPF ${cpfLimpo} | Data Original: ${rawDataNasc} | Convertida: ${dataNasc}`)
 
-                // Telefone - pega o primeiro disponível
+                // Telefones - Pega TODOS os disponíveis e junta
                 let telefone = null
                 if (Array.isArray(telefones) && telefones.length > 0) {
-                    const tel = telefones[0]
-                    telefone = tel.telefone || tel.Telefone || tel.phone || tel.numero || (typeof tel === 'string' ? tel : null)
+                    const listaTels = telefones.map(t => {
+                        const val = t.telefone || t.Telefone || t.phone || t.numero || (typeof t === 'string' ? t : null)
+                        return val ? String(val).replace(/\D/g, '') : null
+                    }).filter(Boolean)
+
+                    if (listaTels.length > 0) {
+                        telefone = Array.from(new Set(listaTels)).join(', ')
+                    }
                 }
 
                 // Renda

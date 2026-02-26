@@ -113,36 +113,51 @@ async function validarNumerosPendentes(sock) {
                         const telLimpo = tel.replace(/\D/g, '');
                         if (!telLimpo) continue;
 
-                        // Adiciona 55 se não tiver
-                        const numero = telLimpo.startsWith('55') ? telLimpo : `55${telLimpo}`;
-                        const jid = `${numero}@s.whatsapp.net`;
+                        // CLASSIFICAÇÃO BÁSICA
+                        const isMobile = telLimpo.length === 11;
+                        const isLandline = telLimpo.length === 10;
+
+                        // Tenta validar no WhatsApp
+                        let whatsappEncontrado = false;
 
                         try {
-                            const results = await sock.onWhatsApp(jid);
+                            // Tenta com o número completo (com 55)
+                            const numero = telLimpo.startsWith('55') ? telLimpo : `55${telLimpo}`;
+                            const results = await sock.onWhatsApp(`${numero}@s.whatsapp.net`);
                             const result = Array.isArray(results) ? results[0] : null;
 
                             if (result?.exists) {
+                                whatsappEncontrado = true;
+                            } else if (isMobile && numero.startsWith('55')) {
+                                // Se for celular BR (11 dígitos), tenta SEM o nono dígito (comum em contas antigas no WhatsApp)
+                                // Ex: 55 11 9 8888 7777 -> 55 11 8888 7777
+                                const ddd = numero.substring(2, 4);
+                                const resto = numero.substring(5);
+                                const semNono = `55${ddd}${resto}`;
+                                const resultsSem9 = await sock.onWhatsApp(`${semNono}@s.whatsapp.net`);
+                                if (resultsSem9[0]?.exists) {
+                                    whatsappEncontrado = true;
+                                }
+                            }
+
+                            if (whatsappEncontrado) {
                                 temWhatsapp = true;
                                 resultados.push(`${tel} ✅`);
-                                console.log(`  ✅ ${tel}: ATIVO (WhatsApp)`);
+                                console.log(`  ✅ ${tel}: WHATSAPP`);
+                            } else if (isLandline) {
+                                temFixo = true;
+                                resultados.push(`${tel} ☎️`);
+                                console.log(`  📞 ${tel}: FIXO`);
                             } else {
-                                // Classifica: 10 dígitos (DDD + nº s/ 9) = fixo
-                                // O regex abaixo é mais seguro
-                                if (telLimpo.length === 10) {
-                                    temFixo = true;
-                                    resultados.push(`${tel} ☎️`);
-                                    console.log(`  📞 ${tel}: FIXO`);
-                                } else {
-                                    resultados.push(`${tel} ❌`);
-                                    console.log(`  ❌ ${tel}: INVÁLIDO`);
-                                }
+                                resultados.push(`${tel} ❌`);
+                                console.log(`  ❌ ${tel}: INVÁLIDO/SEM WHATSAPP`);
                             }
                         } catch (err) {
                             resultados.push(`${tel} ❌`);
                             console.error(`  ❌ Erro ao validar ${tel}:`, err.message);
                         }
 
-                        // Delay entre cada número para evitar ban
+                        // Delay para evitar bloqueio
                         await new Promise(r => setTimeout(r, 1500));
                     }
 
