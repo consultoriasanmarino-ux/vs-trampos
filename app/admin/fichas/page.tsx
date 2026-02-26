@@ -5,7 +5,7 @@ import {
     Users, Search, Smartphone, Phone, AlertTriangle,
     Star, Filter, RefreshCw, Calendar, UserCheck,
     ShieldCheck, DollarSign, ExternalLink, Trash2,
-    ChevronDown, Check, X, UserCog
+    ChevronDown, Check, X, UserCog, MessageCircle
 } from 'lucide-react'
 import { supabase, Cliente, Banco } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
@@ -332,74 +332,25 @@ export default function FichasAdminPage() {
                                         </div>
                                         <p className="text-lg font-black text-white tracking-tighter">{c.score || '—'}</p>
                                     </div>
-                                    <div className="glass-light rounded-2xl p-4 border border-white/5 md:col-span-1 lg:col-span-2 flex flex-col justify-between relative overflow-hidden group/attr">
+                                    <div
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            setAssigningId(isAssigning ? null : c.id)
+                                        }}
+                                        className="glass-light rounded-2xl p-4 border border-white/5 md:col-span-1 lg:col-span-2 flex flex-col justify-between relative overflow-hidden group/attr cursor-pointer hover:bg-white/5 transition-colors"
+                                    >
                                         <div className="flex items-center gap-2 mb-2">
                                             <ShieldCheck size={14} className="text-blue-500" />
                                             <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Ligador Atribuído</span>
                                         </div>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation()
-                                                setAssigningId(isAssigning ? null : c.id)
-                                            }}
-                                            className="text-sm font-black text-left w-full flex items-center justify-between gap-3 p-1 rounded-lg hover:bg-white/5 transition-all group/btn"
+                                        <div className="text-sm font-black text-left w-full flex items-center justify-between gap-3"
                                             style={{ color: nomeLigador ? theme.primary : '#444' }}
                                         >
-                                            <span className="truncate uppercase tracking-tight">{nomeLigador || '⚠️ Aguardando Ligador'}</span>
-                                            <div className="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center group-hover/btn:bg-white/10 transition-all">
+                                            <span className="truncate uppercase tracking-tight">{nomeLigador || '⚠️ Atribuir Agora'}</span>
+                                            <div className="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center transition-all">
                                                 <ChevronDown size={14} className={`transition-transform duration-500 ${isAssigning ? 'rotate-180 scale-125' : ''}`} />
                                             </div>
-                                        </button>
-
-                                        {/* Premium Dropdown Selection */}
-                                        {isAssigning && (
-                                            <div
-                                                className="absolute inset-0 z-[100] glass-strong rounded-2xl p-2.5 animate-fade-in shadow-[0_20px_60px_rgba(0,0,0,0.8)] border border-white/20 flex flex-col overflow-y-auto"
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                <div className="flex items-center justify-between p-2 mb-2 border-b border-white/5">
-                                                    <span className="text-[10px] font-black text-gray-500 uppercase">Selecione o Operador</span>
-                                                    <X size={14} className="text-gray-500 hover:text-white cursor-pointer" onClick={() => setAssigningId(null)} />
-                                                </div>
-                                                <div className="space-y-1">
-                                                    {ligadores.map(lig => (
-                                                        <button
-                                                            key={lig.id}
-                                                            onClick={() => handleAtribuir(c.id, lig.id)}
-                                                            className={`w-full flex items-center gap-4 px-3 py-3 rounded-xl transition-all duration-300 group/item ${c.atribuido_a === lig.id
-                                                                ? 'bg-gradient-to-r from-violet-600/20 to-transparent'
-                                                                : 'hover:bg-white/5'
-                                                                }`}
-                                                        >
-                                                            <div
-                                                                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-lg group-hover/item:scale-110 transition-transform"
-                                                                style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary + '33'})` }}
-                                                            >
-                                                                <span className="text-xs font-black text-white">{lig.nome.charAt(0).toUpperCase()}</span>
-                                                            </div>
-                                                            <div className="flex-1 text-left">
-                                                                <p className="text-sm font-black text-white tracking-tight">{lig.nome}</p>
-                                                                <p className="text-[10px] text-gray-600 uppercase font-black tracking-widest">OPERADOR ATIVO</p>
-                                                            </div>
-                                                            {c.atribuido_a === lig.id && (
-                                                                <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center animate-bounce">
-                                                                    <Check size={12} className="text-white" />
-                                                                </div>
-                                                            )}
-                                                            <div className="opacity-0 group-hover/item:opacity-100 transition-opacity">
-                                                                <UserCheck size={16} style={{ color: theme.primary }} />
-                                                            </div>
-                                                        </button>
-                                                    ))}
-                                                    {ligadores.length === 0 && (
-                                                        <div className="py-10 text-center">
-                                                            <UserCog className="mx-auto text-gray-800 mb-2" size={32} />
-                                                            <p className="text-[10px] font-black text-gray-600 uppercase">Nenhum ligador encontrado</p>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        )}
+                                        </div>
                                     </div>
                                 </div>
 
@@ -410,34 +361,38 @@ export default function FichasAdminPage() {
                                         <div className="h-[1px] flex-1 bg-white/5 mx-4" />
                                     </div>
                                     {c.telefone ? (
-                                        <div className="max-h-[160px] overflow-y-auto pr-2 space-y-2 custom-scrollbar">
-                                            {c.telefone.split(',').map((tel: string, idx: number) => {
-                                                const telClean = tel.trim()
-                                                const isFirstWA = c.status_whatsapp === 'ativo' && idx === 0
+                                        <div className="max-h-[220px] overflow-y-auto pr-2 space-y-2 custom-scrollbar">
+                                            {c.telefone.split(',').map((telRaw: string, idx: number) => {
+                                                const telVal = telRaw.trim()
+                                                const hasWA = telVal.includes('✅')
+                                                const hasFix = telVal.includes('☎️') || telVal.includes('📞')
+                                                const hasInv = telVal.includes('❌')
+                                                const telNumber = telVal.replace(/[✅☎️📞❌]/g, '').trim()
 
                                                 return (
                                                     <div key={idx} className="bg-white/[0.03] hover:bg-white/[0.06] rounded-2xl p-4 flex items-center justify-between border border-white/[0.05] transition-all group/phone overflow-hidden relative">
-                                                        {isFirstWA && <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500" />}
                                                         <div className="flex items-center gap-4">
-                                                            <div className="w-10 h-10 rounded-xl bg-gray-950 flex items-center justify-center shrink-0 border border-white/5">
-                                                                <Phone size={16} className="text-gray-500 group-hover/phone:text-white transition-colors" />
+                                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border border-white/5 transition-colors ${hasWA ? 'bg-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'bg-gray-950'}`}>
+                                                                {hasWA ? (
+                                                                    <MessageCircle size={18} className="text-emerald-500" />
+                                                                ) : hasFix ? (
+                                                                    <Phone size={16} className="text-amber-500" />
+                                                                ) : hasInv ? (
+                                                                    <AlertTriangle size={16} className="text-rose-500/50" />
+                                                                ) : (
+                                                                    <Phone size={16} className="text-gray-600" />
+                                                                )}
                                                             </div>
                                                             <div>
-                                                                <p className="text-[9px] font-black text-gray-700 uppercase mb-0.5 tracking-tighter">Telefone {idx + 1}</p>
-                                                                <p className="text-sm font-mono font-black text-gray-400 tracking-wider group-hover/phone:text-white transition-colors">{telClean}</p>
+                                                                <div className="flex items-center gap-2 mb-0.5">
+                                                                    <p className="text-[9px] font-black text-gray-700 uppercase tracking-tighter">Telefone {idx + 1}</p>
+                                                                    {hasWA && (
+                                                                        <span className="text-[8px] font-black bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full uppercase tracking-tighter border border-emerald-500/20">WPP ATIVO</span>
+                                                                    )}
+                                                                </div>
+                                                                <p className="text-sm font-mono font-black text-gray-400 tracking-wider group-hover/phone:text-white transition-colors">{telNumber}</p>
                                                             </div>
                                                         </div>
-
-                                                        {/* Apenas botão se for WA (lógica simplificada para admin) */}
-                                                        {idx === 0 && c.status_whatsapp === 'ativo' && (
-                                                            <a
-                                                                href={`https://wa.me/55${telClean.replace(/\D/g, '')}`}
-                                                                target="_blank"
-                                                                className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 hover:bg-emerald-500 hover:text-white transition-all shadow-lg hover:shadow-emerald-500/20 active:scale-90"
-                                                            >
-                                                                <ExternalLink size={16} />
-                                                            </a>
-                                                        )}
                                                     </div>
                                                 )
                                             })}
@@ -449,6 +404,69 @@ export default function FichasAdminPage() {
                                         </div>
                                     )}
                                 </div>
+
+                                {/* Premium Selection Overlay - CARD LEVEL */}
+                                {isAssigning && (
+                                    <div
+                                        className="absolute inset-0 z-[100] glass-strong rounded-[2.5rem] p-8 animate-fade-in shadow-[0_20px_60px_rgba(0,0,0,0.8)] border-2 border-white/10 flex flex-col backdrop-blur-2xl"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <div className="flex items-center justify-between p-2 mb-6 border-b border-white/10 pb-4">
+                                            <div>
+                                                <p className="text-[11px] font-black text-gray-500 uppercase tracking-[0.2em]">Fluxo de Atribuição</p>
+                                                <p className="text-lg font-black text-white uppercase tracking-tight">Qual ligador assume?</p>
+                                            </div>
+                                            <button
+                                                onClick={() => setAssigningId(null)}
+                                                className="w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all active:scale-90"
+                                            >
+                                                <X size={20} className="text-gray-400 hover:text-white" />
+                                            </button>
+                                        </div>
+                                        <div className="space-y-3 overflow-y-auto flex-1 custom-scrollbar pr-2">
+                                            {ligadores.map(lig => (
+                                                <button
+                                                    key={lig.id}
+                                                    onClick={() => handleAtribuir(c.id, lig.id)}
+                                                    className={`w-full flex items-center gap-5 px-5 py-5 rounded-[1.5rem] transition-all duration-300 group/item border ${c.atribuido_a === lig.id
+                                                        ? 'bg-gradient-to-r from-emerald-600/20 to-transparent border-emerald-500/30'
+                                                        : 'bg-white/5 border-white/5 hover:border-white/20 hover:scale-[1.02]'
+                                                        }`}
+                                                >
+                                                    <div
+                                                        className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-2xl transition-all duration-500 group-hover/item:rotate-6"
+                                                        style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary + '66'})` }}
+                                                    >
+                                                        <span className="text-lg font-black text-white">{lig.nome.charAt(0).toUpperCase()}</span>
+                                                    </div>
+                                                    <div className="flex-1 text-left">
+                                                        <p className="text-base font-black text-white tracking-tight">{lig.nome}</p>
+                                                        <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mt-1">OPERADOR ESPECIALIZADO</p>
+                                                    </div>
+                                                    {c.atribuido_a === lig.id ? (
+                                                        <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center animate-pulse">
+                                                            <Check size={18} className="text-white" />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center opacity-0 group-hover/item:opacity-100 transition-all">
+                                                            <UserCheck size={20} style={{ color: theme.primary }} />
+                                                        </div>
+                                                    )}
+                                                </button>
+                                            ))}
+                                            {ligadores.length === 0 && (
+                                                <div className="py-24 text-center opacity-40">
+                                                    <UserCog className="mx-auto text-gray-700 mb-6 animate-pulse" size={64} />
+                                                    <p className="text-[12px] font-black text-gray-600 uppercase tracking-[0.3em]">Base de ligadores vazia</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="mt-8 pt-6 border-t border-white/10 flex items-center justify-between text-gray-600 font-mono text-[10px] uppercase font-bold">
+                                            <span>Pronto para Atribuição</span>
+                                            <span>ID: {c.id.substring(0, 8)}</span>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Footer section with delete and date */}
                                 <div className="mt-8 pt-6 border-t border-white/5 flex items-center justify-between group-hover:border-white/10 transition-colors">

@@ -143,10 +143,13 @@ async function validarNumerosPendentes(sock) {
                         statusGeral = 'fixo';
                     }
 
-                    // Atualiza no banco com o status geral
+                    // Atualiza no banco com o status geral e a lista de telefones com ícones
                     await supabase
                         .from('clientes')
-                        .update({ status_whatsapp: statusGeral })
+                        .update({
+                            status_whatsapp: statusGeral,
+                            telefone: resultados.join(', ')
+                        })
                         .eq('id', lead.id);
 
                     console.log(`📋 Lead ${lead.id.substring(0, 8)}: ${statusGeral.toUpperCase()} (${resultados.join(', ')})`);
