@@ -29,7 +29,7 @@ export default function FichasAdminPage() {
     }, [selectedBankId, filtroStatus, filtroLigador])
 
     const carregarLigadores = async () => {
-        const { data } = await supabase.from('usuarios').select('id, nome').eq('role', 'ligador')
+        const { data } = await supabase.from('ligadores').select('id, nome')
         if (data) setLigadores(data)
     }
 
@@ -255,7 +255,7 @@ export default function FichasAdminPage() {
                         return (
                             <div
                                 key={c.id}
-                                className="glass rounded-3xl p-6 card-hover animate-fade-in-up relative overflow-hidden group border border-white/5"
+                                className="glass rounded-3xl p-6 card-hover animate-fade-in-up relative group border border-white/5"
                                 style={{ animationDelay: `${i * 0.03}s` }}
                             >
                                 {/* Accent overlay */}
