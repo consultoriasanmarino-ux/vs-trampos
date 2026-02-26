@@ -1,14 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
-// Classifica se é celular (WhatsApp provável), fixo ou inválido
-function classificarTelefone(tel: string): 'ativo' | 'fixo' | 'invalido' {
-    const limpo = tel.replace(/\D/g, '')
-    if (limpo.length >= 11 && limpo.charAt(2) === '9') return 'ativo'
-    if (limpo.length >= 10) return 'fixo'
-    return 'invalido'
-}
-
 // Parser do formato Leads_completos.txt
 function parseTxtLeads(text: string) {
     const blocos = text.split(/^-{10,}$/m)
@@ -21,15 +13,15 @@ function parseTxtLeads(text: string) {
         const lead: any = {}
 
         for (const line of lines) {
-            if (line.startsWith('NOME:')) {
-                lead.nome = line.replace('NOME:', '').trim()
-            } else if (line.startsWith('CPF:')) {
-                lead.cpf = line.replace('CPF:', '').trim().replace(/[.\-\s]/g, '')
-            } else if (line.startsWith('NASC:')) {
-                lead.data_nascimento = line.replace('NASC:', '').trim()
-            } else if (line.startsWith('RENDA:')) {
-                // Formato: "RENDA: 581,90 | SCORE: N/A"
-                const parts = line.replace('RENDA:', '').trim()
+            const upLine = line.toUpperCase()
+            if (upLine.startsWith('NOME:')) {
+                lead.nome = line.substring(5).trim()
+            } else if (upLine.startsWith('CPF:')) {
+                lead.cpf = line.substring(4).trim().replace(/[.\-\s]/g, '')
+            } else if (upLine.startsWith('NASC:')) {
+                lead.data_nascimento = line.substring(5).trim()
+            } else if (upLine.startsWith('RENDA:')) {
+                const parts = line.substring(6).trim()
                 const rendaPart = parts.split('|')[0]?.trim()
                 const scorePart = parts.split('SCORE:')[1]?.trim()
 
@@ -37,38 +29,33 @@ function parseTxtLeads(text: string) {
                     const rendaNum = parseFloat(rendaPart.replace(/\./g, '').replace(',', '.'))
                     if (!isNaN(rendaNum)) lead.renda = rendaNum
                 }
-
                 if (scorePart && scorePart !== 'N/A') {
                     const scoreNum = parseInt(scorePart)
                     if (!isNaN(scoreNum)) lead.score = scoreNum
                 }
-            } else if (line.startsWith('CELULARES:') || line.startsWith('TELEFONES:')) {
-                const telsStr = line.replace(/^(CELULARES|TELEFONES):/, '').trim()
+            } else if (upLine.startsWith('CELULARES:') || upLine.startsWith('TELEFONES:') || upLine.startsWith('CELULAR:')) {
+                const telsStr = line.split(':')[1]?.trim()
                 if (telsStr && telsStr !== 'Nenhum' && telsStr !== 'N/A') {
-                    // Pega o primeiro telefone
-                    const primeiro = telsStr.split(',')[0].trim()
-                    lead.telefone = primeiro
+                    // Pega o primeiro telefone da lista
+                    lead.telefone = telsStr.split(',')[0].trim()
                 }
             }
         }
 
-        if (lead.cpf) {
+        if (lead.cpf && lead.cpf.length === 11) {
             leads.push(lead)
         }
     }
-
     return leads
 }
 
-// Parser CSV
+// Parser CSV simples
 function parseCsv(text: string) {
     const lines = text.split(/\r?\n/).filter(l => l.trim())
     if (lines.length < 2) return []
-
     const headerLine = lines[0].toLowerCase()
     const separator = headerLine.includes(';') ? ';' : ','
     const headers = headerLine.split(separator).map(h => h.trim().replace(/"/g, ''))
-
     return lines.slice(1).map(line => {
         const values = line.split(separator).map(v => v.trim().replace(/"/g, ''))
         const obj: any = {}
@@ -82,86 +69,72 @@ export async function POST(request: NextRequest) {
         const formData = await request.formData()
         const file = formData.get('file') as File
 
-        if (!file) {
-            return NextResponse.json({ error: 'Arquivo é obrigatório.' }, { status: 400 })
-        }
+        if (!file) return NextResponse.json({ error: 'Arquivo é obrigatório.' }, { status: 400 })
 
         const text = await file.text()
         const fileName = file.name.toLowerCase()
-
         let leads: any[] = []
 
-        // Detectar formato
         if (fileName.endsWith('.json')) {
             leads = JSON.parse(text)
             if (!Array.isArray(leads)) leads = [leads]
         } else if (fileName.endsWith('.csv')) {
             leads = parseCsv(text)
         } else {
-            // TXT - pode ser CSV ou formato de blocos (Leads_completos)
             if (text.includes('NOME:') && text.includes('CPF:')) {
-                // Formato Leads_completos.txt
                 leads = parseTxtLeads(text)
-            } else if (text.includes(',') || text.includes(';')) {
-                // Tentar como CSV
-                leads = parseCsv(text)
             } else {
-                return NextResponse.json({ error: 'Formato de arquivo não reconhecido.' }, { status: 400 })
+                leads = parseCsv(text) // Tenta CSV como fallback para TXT
             }
         }
 
-        if (leads.length === 0) {
-            return NextResponse.json({ error: 'Nenhum lead encontrado no arquivo.' }, { status: 400 })
-        }
+        if (leads.length === 0) return NextResponse.json({ error: 'Nenhum lead válido encontrado.' }, { status: 400 })
 
-        let atualizados = 0
+        let processados = 0
         let erros = 0
 
+        // Processa um por um para garantir o merge correto (upsert)
         for (const lead of leads) {
-            const cpf = (lead.cpf || '').toString().replace(/[.\-\s]/g, '')
-            if (!cpf || cpf.length !== 11) {
-                erros++
-                continue
+            const cpf = lead.cpf.replace(/\D/g, '')
+
+            const record = {
+                cpf: cpf,
+                nome: lead.nome || null,
+                data_nascimento: lead.data_nascimento || null,
+                renda: lead.renda || null,
+                score: lead.score || null,
+                telefone: lead.telefone || null,
+                // Deixa status_whatsapp como null se tiver telefone novo para o servidor local validar
+                status_whatsapp: null
             }
 
-            const updateData: any = {}
-            if (lead.nome) updateData.nome = lead.nome
-            if (lead.data_nascimento) updateData.data_nascimento = lead.data_nascimento
-            if (lead.renda) updateData.renda = lead.renda
-            if (lead.score) updateData.score = lead.score
-
-            if (lead.telefone) {
-                updateData.telefone = lead.telefone
-                updateData.status_whatsapp = classificarTelefone(lead.telefone)
-            }
-
-            // Só atualiza se tem algo pra atualizar
-            if (Object.keys(updateData).length === 0) {
-                erros++
-                continue
-            }
+            // Remove campos nulos para não sobrescrever dados existentes com vazio caso já existam
+            Object.keys(record).forEach(key => {
+                if ((record as any)[key] === null) delete (record as any)[key];
+            });
+            // Se tem telefone, forçamos o status_whatsapp para nulo para o validador pegar
+            if (lead.telefone) (record as any).status_whatsapp = null;
 
             const { error } = await supabase
                 .from('clientes')
-                .update(updateData)
-                .eq('cpf', cpf)
+                .upsert(record, { onConflict: 'cpf' })
 
             if (error) {
+                console.error(`Erro no CPF ${cpf}:`, error.message)
                 erros++
             } else {
-                atualizados++
+                processados++
             }
         }
 
         return NextResponse.json({
             success: true,
-            message: `${atualizados} lead(s) enriquecido(s). ${erros > 0 ? `${erros} ignorado(s).` : ''}`,
+            message: `${processados} leads processados (criados ou atualizados).`,
             total: leads.length,
-            atualizados,
-            erros,
+            erros
         })
     } catch (err: any) {
-        console.error('Erro no enriquecimento:', err)
-        return NextResponse.json({ error: `Erro interno: ${err?.message || 'desconhecido'}` }, { status: 500 })
+        console.error('Erro geral:', err)
+        return NextResponse.json({ error: 'Erro interno no servidor.' }, { status: 500 })
     }
 }
