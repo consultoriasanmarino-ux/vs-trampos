@@ -1,17 +1,19 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Users, Search, Smartphone, Phone, AlertTriangle, Filter } from 'lucide-react'
+import { Users, Search, Smartphone, Phone, AlertTriangle, Filter, Trash2, X, AlertCircle } from 'lucide-react'
 import { supabase, Cliente, Banco } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
 
 export default function LeadsPage() {
-    const { theme, selectedBankId } = useBankTheme()
+    const { theme, selectedBankId, selectedBankName } = useBankTheme()
     const [clientes, setClientes] = useState<Cliente[]>([])
     const [bancos, setBancos] = useState<Banco[]>([])
     const [filtroWhatsapp, setFiltroWhatsapp] = useState<string>('todos')
     const [busca, setBusca] = useState('')
     const [loading, setLoading] = useState(true)
+    const [deletingAll, setDeletingAll] = useState(false)
+    const [confirmDeleteAll, setConfirmDeleteAll] = useState(false)
 
     useEffect(() => {
         carregarDados()
@@ -22,13 +24,44 @@ export default function LeadsPage() {
         const { data: bancosData } = await supabase.from('bancos').select('*').order('nome')
         if (bancosData) setBancos(bancosData)
 
-        let query = supabase.from('clientes').select('*, bancos(nome)').order('created_at', { ascending: false }).limit(100)
+        let query = supabase.from('clientes').select('*, bancos(nome)').order('created_at', { ascending: false }).limit(250)
         if (filtroWhatsapp !== 'todos') query = query.eq('status_whatsapp', filtroWhatsapp)
         if (selectedBankId) query = query.eq('banco_principal_id', selectedBankId)
 
         const { data } = await query
         if (data) setClientes(data)
         setLoading(false)
+    }
+
+    const handleApagarUm = async (id: string) => {
+        if (!confirm('Deseja realmente apagar este lead?')) return
+
+        const { error } = await supabase.from('clientes').delete().eq('id', id)
+        if (!error) {
+            setClientes(prev => prev.filter(c => c.id !== id))
+        }
+    }
+
+    const handleApagarTudo = async () => {
+        setDeletingAll(true)
+
+        let query = supabase.from('clientes').delete().neq('id', '00000000-0000-0000-0000-000000000000') // Deleta tudo
+
+        // Se tiver banco selecionado, apaga só desse banco
+        if (selectedBankId) {
+            query = query.eq('banco_principal_id', selectedBankId)
+        }
+
+        const { error } = await query
+
+        if (!error) {
+            setClientes([])
+            setConfirmDeleteAll(false)
+        } else {
+            alert('Erro ao apagar leads: ' + error.message)
+        }
+
+        setDeletingAll(false)
     }
 
     const clientesFiltrados = clientes.filter(c => {
@@ -57,10 +90,54 @@ export default function LeadsPage() {
 
     return (
         <div className="p-6 lg:p-8">
-            <div className="mb-8 animate-fade-in-up">
-                <h1 className="text-2xl font-bold text-white tracking-tight">Leads</h1>
-                <p className="text-gray-600 text-sm mt-1">Visualize e filtre seus leads importados.</p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 animate-fade-in-up">
+                <div>
+                    <h1 className="text-2xl font-bold text-white tracking-tight">Leads</h1>
+                    <p className="text-gray-600 text-sm mt-1">Visualize e gerencie seus leads importados.</p>
+                </div>
+
+                {clientes.length > 0 && (
+                    <button
+                        onClick={() => setConfirmDeleteAll(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl transition-all text-sm font-semibold border border-red-500/20"
+                    >
+                        <Trash2 size={16} />
+                        Apagar Tudo {selectedBankId ? `(${selectedBankName})` : ''}
+                    </button>
+                )}
             </div>
+
+            {/* Modal de Confirmação para Apagar Tudo */}
+            {confirmDeleteAll && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+                    <div className="glass-strong rounded-3xl p-8 max-w-md w-full border border-white/10 animate-scale-in shadow-2xl">
+                        <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-6">
+                            <AlertCircle size={32} className="text-red-500" />
+                        </div>
+                        <h2 className="text-xl font-bold text-white text-center mb-2">Tem certeza absoluta?</h2>
+                        <p className="text-gray-400 text-center text-sm mb-8 leading-relaxed">
+                            Você está prestes a apagar <b>TODOS</b> os leads
+                            {selectedBankId ? <> do banco <b>{selectedBankName}</b></> : ' do sistema'}.
+                            Esta ação não pode ser desfeita.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setConfirmDeleteAll(false)}
+                                className="flex-1 px-6 py-3.5 glass rounded-xl text-white text-sm font-bold hover:bg-white/5 transition-all"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleApagarTudo}
+                                disabled={deletingAll}
+                                className="flex-1 px-6 py-3.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-red-600/20 transition-all disabled:opacity-50"
+                            >
+                                {deletingAll ? 'Apagando...' : 'Sim, Apagar'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="flex flex-col lg:flex-row gap-3 mb-6 animate-fade-in-up stagger-1">
                 <div className="relative flex-1">
@@ -99,16 +176,16 @@ export default function LeadsPage() {
                     <table className="w-full">
                         <thead>
                             <tr className="border-b border-white/[0.04]">
-                                {['CPF', 'Nome', 'Renda', 'Score', 'Banco', 'Telefone', 'Status'].map(h => (
+                                {['CPF', 'Nome', 'Banco', 'Telefone', 'Status', 'Ações'].map(h => (
                                     <th key={h} className="text-left px-5 py-3.5 text-[10px] font-bold text-gray-600 uppercase tracking-wider">{h}</th>
                                 ))}
                             </tr>
                         </thead>
                         <tbody>
                             {loading ? (
-                                <tr><td colSpan={7} className="text-center py-12 text-gray-600 text-sm">Carregando...</td></tr>
+                                <tr><td colSpan={6} className="text-center py-12 text-gray-600 text-sm">Carregando...</td></tr>
                             ) : clientesFiltrados.length === 0 ? (
-                                <tr><td colSpan={7} className="text-center py-12 text-gray-600 text-sm">Nenhum lead encontrado.</td></tr>
+                                <tr><td colSpan={6} className="text-center py-12 text-gray-600 text-sm">Nenhum lead encontrado.</td></tr>
                             ) : (
                                 clientesFiltrados.map((c, i) => (
                                     <tr
@@ -117,16 +194,30 @@ export default function LeadsPage() {
                                         style={{ animationDelay: `${i * 0.02}s` }}
                                     >
                                         <td className="px-5 py-3.5 text-sm text-white font-mono">{c.cpf}</td>
-                                        <td className="px-5 py-3.5 text-sm text-gray-300">{c.nome || '—'}</td>
-                                        <td className="px-5 py-3.5 text-sm text-gray-300">{c.renda ? `R$ ${c.renda.toLocaleString()}` : '—'}</td>
-                                        <td className="px-5 py-3.5 text-sm text-gray-300">{c.score || '—'}</td>
-                                        <td className="px-5 py-3.5 text-sm text-gray-300">{(c.bancos as any)?.nome || '—'}</td>
+                                        <td className="px-5 py-3.5 text-sm">
+                                            <div className="flex flex-col">
+                                                <span className="text-gray-300 font-medium">{c.nome || '—'}</span>
+                                                <span className="text-[10px] text-gray-600">
+                                                    {c.renda ? `R$ ${c.renda.toLocaleString()}` : ''}
+                                                    {c.score ? ` • Score: ${c.score}` : ''}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="px-5 py-3.5 text-sm text-gray-400">{(c.bancos as any)?.nome || '—'}</td>
                                         <td className="px-5 py-3.5 text-sm text-gray-300 font-mono">{c.telefone || '—'}</td>
                                         <td className="px-5 py-3.5">
                                             <div className="flex items-center gap-1.5">
                                                 {statusIcon(c.status_whatsapp)}
                                                 <span className="text-xs text-gray-400">{statusLabel(c.status_whatsapp)}</span>
                                             </div>
+                                        </td>
+                                        <td className="px-5 py-3.5">
+                                            <button
+                                                onClick={() => handleApagarUm(c.id)}
+                                                className="p-2 text-gray-600 hover:text-red-500 transition-colors"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
                                         </td>
                                     </tr>
                                 ))
