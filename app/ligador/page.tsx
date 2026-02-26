@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import {
     Users, Search, Smartphone, Phone, AlertTriangle,
-    CreditCard, TrendingUp, Star, Landmark, Zap, Lock, AlertCircle, RefreshCw
+    CreditCard, TrendingUp, Star, Landmark, Zap, Lock, AlertCircle, RefreshCw,
+    Calendar, UserCheck, ShieldCheck, MapPin, DollarSign, ExternalLink
 } from 'lucide-react'
 import { supabase, Cliente, Banco } from '@/lib/supabase'
 import { themeFromColor } from '@/lib/bank-theme'
@@ -101,7 +102,7 @@ export default function LigadorPage() {
     const clientesFiltrados = clientes.filter(c => {
         if (!busca) return true
         const termo = busca.toLowerCase()
-        return c.cpf?.toLowerCase().includes(termo) || c.nome?.toLowerCase().includes(termo)
+        return c.cpf?.toLowerCase().includes(termo) || c.nome?.toLowerCase().includes(termo) || c.telefone?.includes(termo)
     })
 
     const theme = bancoSelecionado ? themeFromColor(bancoSelecionado.cor) : null
@@ -109,34 +110,34 @@ export default function LigadorPage() {
     const statusBadge = (status: string | null, telefone: string | null) => {
         if (!status && telefone) {
             return (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-500/10 text-purple-400 rounded-md text-[10px] font-semibold">
-                    <RefreshCw size={10} className="animate-spin" /> Analisando...
+                <span className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-500/10 text-purple-400 rounded-full text-[10px] font-bold border border-purple-500/10">
+                    <RefreshCw size={10} className="animate-spin" /> ANALISANDO...
                 </span>
             )
         }
         switch (status) {
             case 'ativo':
                 return (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-500/10 text-green-400 rounded-md text-[10px] font-semibold">
-                        <Smartphone size={10} /> WhatsApp
+                    <span className="flex items-center gap-1.5 px-2.5 py-1 bg-green-500/10 text-green-400 rounded-full text-[10px] font-bold border border-green-500/10">
+                        <Smartphone size={10} /> WHATSAPP
                     </span>
                 )
             case 'fixo':
                 return (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-500/10 text-yellow-400 rounded-md text-[10px] font-semibold">
-                        <Phone size={10} /> Fixo
+                    <span className="flex items-center gap-1.5 px-2.5 py-1 bg-yellow-500/10 text-yellow-400 rounded-full text-[10px] font-bold border border-yellow-500/10">
+                        <Phone size={10} /> FIXO
                     </span>
                 )
             case 'invalido':
                 return (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-500/10 text-red-400 rounded-md text-[10px] font-semibold">
-                        <AlertTriangle size={10} /> Inválido
+                    <span className="flex items-center gap-1.5 px-2.5 py-1 bg-red-500/10 text-red-400 rounded-full text-[10px] font-bold border border-red-500/10">
+                        <AlertTriangle size={10} /> INVÁLIDO
                     </span>
                 )
             default:
                 return (
-                    <span className="inline-flex px-2 py-0.5 bg-white/[0.03] text-gray-600 rounded-md text-[10px] font-semibold">
-                        Sem info
+                    <span className="flex items-center gap-1.5 px-2.5 py-1 bg-white/5 text-gray-500 rounded-full text-[10px] font-bold border border-white/10">
+                        SEM INFO
                     </span>
                 )
         }
@@ -195,7 +196,7 @@ export default function LigadorPage() {
                                         onClick={() => setBancoSelecionado(banco)}
                                         className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all duration-300 group relative overflow-hidden ${temFichas
                                             ? 'bg-white/[0.03] border-white/[0.06] text-gray-300 hover:text-white hover:bg-white/[0.06] hover:border-white/[0.1]'
-                                            : 'bg-white/[0.01] border-white/[0.03] text-gray-600'
+                                            : 'bg-white/[0.01] border-white/[0.03] text-gray-600 opacity-50'
                                             }`}
                                     >
                                         <div
@@ -227,9 +228,6 @@ export default function LigadorPage() {
                                     </button>
                                 )
                             })}
-                            {bancos.length === 0 && (
-                                <p className="text-gray-600 text-sm py-6">Nenhum banco cadastrado no sistema.</p>
-                            )}
                         </div>
                     )}
                 </div>
@@ -239,126 +237,172 @@ export default function LigadorPage() {
 
     // ===== DASHBOARD DE FICHAS =====
     return (
-        <div className="animate-fade-in">
+        <div className="animate-fade-in p-6 lg:p-8">
             {/* Header */}
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-8">
                 <div className="flex items-center gap-4">
                     <button
-                        onClick={() => { setBancoSelecionado(null); }}
+                        onClick={() => { setBancoSelecionado(null); setClientes([]) }}
                         className="glass px-4 py-2.5 rounded-xl text-sm text-gray-400 hover:text-white transition-all flex items-center gap-2"
                     >
                         ← Trocar Banco
                     </button>
                     <div>
                         <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-                            Fichas
+                            Minhas Fichas
                             <span
-                                className="text-sm font-semibold px-3 py-1 rounded-lg"
+                                className="text-xs font-bold px-3 py-1 rounded-lg uppercase tracking-wider"
                                 style={{
                                     background: `rgba(${theme!.primaryRGB}, 0.1)`,
                                     color: theme!.primary,
+                                    border: `1px solid rgba(${theme!.primaryRGB}, 0.2)`
                                 }}
                             >
                                 {bancoSelecionado.nome}
                             </span>
                         </h1>
                         <p className="text-gray-600 text-sm mt-1">
-                            {clientesFiltrados.length} ficha(s) atribuída(s) a você
+                            {clientesFiltrados.length} ficha(s) pronta(s) para contato.
                         </p>
                     </div>
                 </div>
+
+                <button
+                    onClick={carregarClientes}
+                    className="glass p-2.5 rounded-xl text-gray-400 hover:text-white transition-all group"
+                >
+                    <RefreshCw size={18} className={loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'} />
+                </button>
             </div>
 
             {/* Busca */}
-            <div className="mb-6">
+            <div className="mb-8">
                 <div className="relative">
-                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-600" size={16} />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600" size={18} />
                     <input
                         type="text"
                         value={busca}
                         onChange={(e) => setBusca(e.target.value)}
-                        placeholder="Buscar por CPF ou nome..."
-                        className="w-full max-w-md pl-10 pr-4 py-3 glass rounded-xl text-white placeholder-gray-600 text-sm focus:outline-none focus:ring-2 transition-all"
+                        placeholder="Buscar por CPF, nome ou telefone..."
+                        className="w-full max-w-xl pl-12 pr-4 py-4 glass rounded-2xl text-white placeholder-gray-600 text-sm focus:outline-none focus:ring-2 transition-all"
                         style={{ '--tw-ring-color': `rgba(${theme!.primaryRGB}, 0.4)` } as React.CSSProperties}
                     />
                 </div>
             </div>
 
-            {/* Cards */}
+            {/* Grid of Cards */}
             {loading ? (
-                <div className="text-center py-20 text-gray-600 text-sm">Carregando fichas...</div>
+                <div className="flex flex-col items-center justify-center py-24 text-gray-600">
+                    <RefreshCw size={32} className="animate-spin mb-4" />
+                    <p className="text-sm font-medium">Carregando fichas detalhadas...</p>
+                </div>
             ) : clientesFiltrados.length === 0 ? (
-                <div className="text-center py-20 animate-fade-in">
-                    <Users className="mx-auto text-gray-800 mb-3" size={48} />
-                    <p className="text-gray-600 text-sm">Nenhuma ficha encontrada neste banco.</p>
-                    <p className="text-gray-700 text-xs mt-1">Peça ao admin para atribuir fichas a você.</p>
+                <div className="text-center py-24 glass rounded-3xl border border-dashed border-white/5">
+                    <Users className="mx-auto text-gray-800 mb-4" size={48} />
+                    <p className="text-gray-500 font-medium">Nenhuma ficha encontrada.</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {clientesFiltrados.map((c, i) => (
                         <div
                             key={c.id}
-                            className="glass rounded-2xl p-5 card-hover animate-fade-in-up relative overflow-hidden"
-                            style={{ animationDelay: `${i * 0.05}s` }}
+                            className="glass rounded-3xl p-6 card-hover animate-fade-in-up relative overflow-hidden group border border-white/5"
+                            style={{ animationDelay: `${i * 0.03}s` }}
                         >
-                            {/* Decorative top line */}
-                            <div className="absolute top-0 left-0 right-0 h-[2px]" style={{
-                                background: `linear-gradient(to right, transparent, ${theme!.primary}, transparent)`,
-                                opacity: 0.3,
-                            }} />
+                            {/* Accent overlay */}
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-white/[0.05] to-transparent rounded-bl-full pointer-events-none" />
 
-                            {/* Header */}
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center gap-3">
+                            {/* Top header of card */}
+                            <div className="flex items-start justify-between mb-6">
+                                <div className="flex items-center gap-4">
                                     <div
-                                        className="w-10 h-10 rounded-xl flex items-center justify-center border border-white/[0.04] transition-all duration-500"
-                                        style={{ background: `linear-gradient(135deg, rgba(${theme!.primaryRGB}, 0.2), rgba(${theme!.primaryRGB}, 0.05))` }}
+                                        className="w-12 h-12 rounded-2xl flex items-center justify-center text-lg font-bold shadow-2xl transition-all duration-500 group-hover:scale-110"
+                                        style={{
+                                            background: `linear-gradient(135deg, rgba(${theme!.primaryRGB}, 0.3), rgba(${theme!.primaryRGB}, 0.1))`,
+                                            color: theme!.primary,
+                                            border: `1px solid rgba(${theme!.primaryRGB}, 0.2)`
+                                        }}
                                     >
-                                        <span className="text-sm font-bold" style={{ color: theme!.primary }}>
-                                            {c.nome ? c.nome.charAt(0).toUpperCase() : '#'}
-                                        </span>
+                                        {c.nome ? c.nome.charAt(0) : '?'}
                                     </div>
                                     <div>
-                                        <p className="text-sm font-medium text-white">{c.nome || 'Sem nome'}</p>
-                                        <p className="text-[10px] text-gray-600 font-mono">{c.cpf}</p>
+                                        <h3 className="text-base font-bold text-white group-hover:text-violet-400 transition-colors truncate max-w-[140px]">{c.nome || 'Sem Nome'}</h3>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                            <span className="text-[11px] font-mono text-gray-500">{c.cpf}</span>
+                                        </div>
                                     </div>
                                 </div>
                                 {statusBadge(c.status_whatsapp, c.telefone)}
                             </div>
 
-                            {/* Info Grid */}
-                            <div className="grid grid-cols-2 gap-3 mb-4">
-                                <div className="glass rounded-xl px-3 py-2.5">
-                                    <div className="flex items-center gap-1.5 mb-1">
-                                        <TrendingUp size={10} className="text-green-500" />
-                                        <p className="text-[9px] text-gray-600 uppercase tracking-wider font-semibold">Renda</p>
+                            {/* Info Grid - 2x2 */}
+                            <div className="grid grid-cols-2 gap-3 mb-6">
+                                <div className="glass-light rounded-2xl p-3 border border-white/[0.03]">
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                        <DollarSign size={12} className="text-emerald-500" />
+                                        <span className="text-[9px] font-bold text-gray-600 uppercase tracking-wider">Renda</span>
                                     </div>
-                                    <p className="text-sm font-semibold text-white">
+                                    <p className="text-sm font-bold text-white tracking-tight">
                                         {c.renda ? `R$ ${c.renda.toLocaleString()}` : '—'}
                                     </p>
                                 </div>
-                                <div className="glass rounded-xl px-3 py-2.5">
-                                    <div className="flex items-center gap-1.5 mb-1">
-                                        <Star size={10} className="text-yellow-500" />
-                                        <p className="text-[9px] text-gray-600 uppercase tracking-wider font-semibold">Score</p>
+                                <div className="glass-light rounded-2xl p-3 border border-white/[0.03]">
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                        <Star size={12} className="text-yellow-500" />
+                                        <span className="text-[9px] font-bold text-gray-600 uppercase tracking-wider">Score</span>
                                     </div>
-                                    <p className="text-sm font-semibold text-white">{c.score || '—'}</p>
+                                    <p className="text-sm font-bold text-white tracking-tight">{c.score || '—'}</p>
+                                </div>
+                                <div className="glass-light rounded-2xl p-3 border border-white/[0.03]">
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                        <Calendar size={12} className="text-violet-500" />
+                                        <span className="text-[9px] font-bold text-gray-600 uppercase tracking-wider">Nasc.</span>
+                                    </div>
+                                    <p className="text-sm font-bold text-white tracking-tight">{c.data_nascimento || '—'}</p>
+                                </div>
+                                <div className="glass-light rounded-2xl p-3 border border-white/[0.03]">
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                        <CreditCard size={12} className="text-blue-500" />
+                                        <span className="text-[9px] font-bold text-gray-600 uppercase tracking-wider">Banco</span>
+                                    </div>
+                                    <p className="text-xs font-bold text-gray-400 truncate tracking-tight">
+                                        {(c.bancos as any)?.nome || '—'}
+                                    </p>
                                 </div>
                             </div>
 
-                            {/* Banco & Tel */}
-                            <div className="space-y-2">
-                                <div className="flex items-center gap-2">
-                                    <CreditCard size={12} className="text-gray-600" />
-                                    <span className="text-xs text-gray-400">{(c.bancos as any)?.nome || 'Sem banco'}</span>
-                                </div>
-                                {c.telefone && (
-                                    <div className="flex items-center gap-2">
-                                        <Phone size={12} className="text-gray-600" />
-                                        <span className="text-xs text-gray-400 font-mono">{c.telefone}</span>
+                            {/* Phone Area */}
+                            {c.telefone ? (
+                                <a
+                                    href={`https://wa.me/55${c.telefone.replace(/\D/g, '')}`}
+                                    target="_blank"
+                                    className={`w-full bg-white/[0.02] rounded-2xl p-4 flex items-center justify-between border border-white/[0.04] transition-all group-hover:bg-white/[0.04] group-hover:border-white/[0.1] active:scale-[0.98] ${c.status_whatsapp !== 'ativo' ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className={`p-2 rounded-xl bg-gray-900 group-hover:bg-black transition-colors`}>
+                                            <Phone size={14} className={c.status_whatsapp === 'ativo' ? 'text-green-500' : 'text-gray-600'} />
+                                        </div>
+                                        <div>
+                                            <p className="text-[9px] font-bold text-gray-700 uppercase mb-0.5">Telefone</p>
+                                            <p className="text-sm font-mono font-bold text-gray-400 tracking-wider">
+                                                {c.telefone}
+                                            </p>
+                                        </div>
                                     </div>
-                                )}
-                            </div>
+                                    {c.status_whatsapp === 'ativo' && (
+                                        <div className="w-9 h-9 rounded-full bg-green-500 flex items-center justify-center text-white shadow-lg shadow-green-500/20">
+                                            <ExternalLink size={16} />
+                                        </div>
+                                    )}
+                                </a>
+                            ) : (
+                                <div className="bg-white/[0.01] rounded-2xl p-4 flex items-center gap-3 border border-white/[0.03] opacity-50">
+                                    <div className="p-2 rounded-xl bg-gray-900">
+                                        <Lock size={14} className="text-gray-700" />
+                                    </div>
+                                    <p className="text-xs font-medium text-gray-600 italic">Telefone não disponível</p>
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>

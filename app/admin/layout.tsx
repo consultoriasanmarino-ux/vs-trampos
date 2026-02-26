@@ -13,6 +13,7 @@ import {
     ChevronDown,
     Sparkles,
     Zap,
+    CreditCard
 } from 'lucide-react'
 import { supabase, Banco } from '@/lib/supabase'
 import { BankThemeProvider, useBankTheme } from '@/lib/bank-theme'
@@ -21,6 +22,7 @@ const navItems = [
     { href: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
     { href: '/admin/bancos', icon: Landmark, label: 'Bancos' },
     { href: '/admin/leads', icon: Users, label: 'Leads' },
+    { href: '/admin/fichas', icon: CreditCard, label: 'Fichas' },
     { href: '/admin/ligadores', icon: UserCog, label: 'Ligadores' },
     { href: '/admin/whatsapp', icon: MessageCircle, label: 'WhatsApp' },
 ]
