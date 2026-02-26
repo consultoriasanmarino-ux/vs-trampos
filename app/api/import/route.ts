@@ -5,44 +5,48 @@ export async function POST(request: NextRequest) {
     try {
         const formData = await request.formData()
         const file = formData.get('file') as File
-        const banco = formData.get('banco') as string
+        const bancoId = formData.get('banco_id') as string
 
-        if (!file || !banco) {
-            return NextResponse.json({ error: 'Arquivo e banco são obrigatórios' }, { status: 400 })
+        if (!file || !bancoId) {
+            return NextResponse.json({ error: 'Arquivo e banco são obrigatórios.' }, { status: 400 })
         }
 
         const text = await file.text()
-        // Assume que cada linha é um CPF ou dados separados por vírgula/espaço
         const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0)
 
+        // Limpa CPFs (remove pontos, traços, espaços)
         const clientes = lines.map(line => {
-            const data = line.trim()
+            const cpfLimpo = line.trim().replace(/[.\-\s]/g, '')
             return {
-                cpf: data,
-                banco: banco,
-                created_at: new Date().toISOString()
+                cpf: cpfLimpo,
+                banco_principal_id: bancoId,
+                status_whatsapp: null,
+                created_at: new Date().toISOString(),
             }
         })
 
-        // Inserção em massa no Supabase
+        if (clientes.length === 0) {
+            return NextResponse.json({ error: 'Arquivo vazio ou sem CPFs válidos.' }, { status: 400 })
+        }
+
+        // Inserção em lote (upsert por CPF para evitar duplicatas)
         const { data, error } = await supabase
             .from('clientes')
-            .insert(clientes)
+            .upsert(clientes, { onConflict: 'cpf' })
             .select()
 
         if (error) {
-            console.error('Erro ao salvar no Supabase:', error)
-            return NextResponse.json({ error: 'Erro ao salvar dados no banco' }, { status: 500 })
+            console.error('Erro Supabase:', error)
+            return NextResponse.json({ error: 'Erro ao salvar no banco de dados.' }, { status: 500 })
         }
 
         return NextResponse.json({
             success: true,
             count: clientes.length,
-            message: `${clientes.length} CPFs vinculados ao ${banco} foram importados com sucesso.`
+            message: `${clientes.length} CPFs importados com sucesso.`,
         })
-
-    } catch (error) {
-        console.error('Erro no processamento do arquivo:', error)
-        return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 })
+    } catch (err) {
+        console.error('Erro no import:', err)
+        return NextResponse.json({ error: 'Erro interno no servidor.' }, { status: 500 })
     }
 }
