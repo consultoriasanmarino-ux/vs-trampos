@@ -128,6 +128,8 @@ export default function AdminDashboard() {
             return
         }
 
+        console.log('Leads encontrados para enriquecer:', leadsParaEnriquecer)
+
         if (!leadsParaEnriquecer || leadsParaEnriquecer.length === 0) {
             alert('Não há fichas pendentes de consulta (todas já possuem nome).')
             return
@@ -160,6 +162,7 @@ export default function AdminDashboard() {
         // Processar em lotes de 5 via API route server-side (evita CORS)
         const batchSize = 5
         let totalSucessos = 0
+        let totalErros = 0
 
         for (let i = 0; i < leadsParaEnriquecer.length; i += batchSize) {
             const batch = leadsParaEnriquecer.slice(i, i + batchSize)
@@ -177,12 +180,15 @@ export default function AdminDashboard() {
                 })
 
                 const result = await res.json()
+                console.log('Resultado do lote:', result)
 
                 if (result.success) {
-                    totalSucessos += result.sucessos
+                    totalSucessos += result.sucessos || 0
+                    totalErros += (result.erros || 0)
                 }
             } catch (err) {
                 console.error('Erro no lote:', err)
+                totalErros += batch.length
             }
 
             setEnrichProgress({ current: Math.min(i + batchSize, leadsParaEnriquecer.length), total: leadsParaEnriquecer.length })
@@ -190,7 +196,7 @@ export default function AdminDashboard() {
 
         setEnriching(false)
         carregarStats()
-        alert(`Consulta finalizada! ${totalSucessos} fichas atualizadas com sucesso.`)
+        alert(`Consulta finalizada!\nSucessos: ${totalSucessos}\nFalhas: ${totalErros}`)
     }
 
     return (

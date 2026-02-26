@@ -149,6 +149,7 @@ export default function FichasAdminPage() {
 
     const handleAutoConsultar = async () => {
         const leadsParaEnriquecer = leads.filter(l => !l.nome || l.nome.trim() === '')
+        console.log('Fichas encontradas para enriquecer:', leadsParaEnriquecer)
 
         if (leadsParaEnriquecer.length === 0) {
             alert('Não há fichas pendentes de consulta (todas já possuem nome).')
@@ -182,6 +183,7 @@ export default function FichasAdminPage() {
         // Processar em lotes via API route server-side (evita CORS)
         const batchSize = 5
         let totalSucessos = 0
+        let totalErros = 0
 
         for (let i = 0; i < leadsParaEnriquecer.length; i += batchSize) {
             const batch = leadsParaEnriquecer.slice(i, i + batchSize)
@@ -199,12 +201,15 @@ export default function FichasAdminPage() {
                 })
 
                 const result = await res.json()
+                console.log('Resultado do lote:', result)
 
                 if (result.success) {
-                    totalSucessos += result.sucessos
+                    totalSucessos += result.sucessos || 0
+                    totalErros += (result.erros || 0)
                 }
             } catch (err) {
                 console.error('Erro no lote:', err)
+                totalErros += batch.length
             }
 
             setEnrichProgress({ current: Math.min(i + batchSize, leadsParaEnriquecer.length), total: leadsParaEnriquecer.length })
@@ -212,7 +217,7 @@ export default function FichasAdminPage() {
 
         setEnriching(false)
         carregarFichas()
-        alert(`Consulta finalizada! ${totalSucessos} fichas atualizadas.`)
+        alert(`Consulta finalizada!\nSucessos: ${totalSucessos}\nFalhas: ${totalErros}`)
     }
 
     // Formata data ISO (YYYY-MM-DD) para BR (DD/MM/YYYY)

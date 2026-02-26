@@ -26,33 +26,38 @@ export async function POST(request: NextRequest) {
                     .replace('{MODULO}', modulo)
                     .replace('{PARAMETRO}', cpfLimpo)
 
-                const response = await fetch(finalUrl)
+                console.log(`[Proxy API] Consultando CPF: ${cpfLimpo} na URL: ${finalUrl.replace(token, '***')}`)
+
+                const response = await fetch(finalUrl, { cache: 'no-store' })
                 const result = await response.json()
 
-                if (result && result.status === 200) {
+                console.log(`[Proxy API] Resposta para ${cpfLimpo}:`, JSON.stringify(result).substring(0, 200))
+
+                // Verifica status 200 (numérico ou string)
+                if (result && (result.status == 200 || result.status == "200" || result.Status == 200)) {
                     const basicos = result.DadosBasicos || {}
                     const economicos = result.DadosEconomicos || {}
-                    const telefones = result.telefones || []
+                    const telefones = result.telefones || result.Telefones || []
 
                     // Primeiro telefone válido
-                    const telefone = telefones.length > 0 ? telefones[0].telefone : null
+                    const telefone = telefones.length > 0 ? (telefones[0].telefone || telefones[0].Telefone) : null
 
                     // Converter renda "891,66" para número
-                    const rendaStr = economicos.renda || ''
+                    const rendaStr = String(economicos.renda || economicos.Renda || '')
                     const rendaNum = rendaStr ? parseFloat(rendaStr.replace(/\./g, '').replace(',', '.')) : null
 
                     // Score
-                    const scoreObj = economicos.score || {}
-                    const scoreVal = scoreObj.scoreCSBA || scoreObj.scoreCSB || null
+                    const scoreObj = economicos.score || economicos.Score || {}
+                    const scoreVal = scoreObj.scoreCSBA || scoreObj.scoreCSB || scoreObj.ScoreCSBA || null
 
                     // Montar dados para atualizar
                     const novosDados: Record<string, any> = {}
-                    if (basicos.nome) novosDados.nome = basicos.nome
-                    if (basicos.dataNascimento) novosDados.data_nascimento = basicos.dataNascimento
+                    if (basicos.nome || basicos.Nome) novosDados.nome = basicos.nome || basicos.Nome
+                    if (basicos.dataNascimento || basicos.DataNascimento) novosDados.data_nascimento = basicos.dataNascimento || basicos.DataNascimento
                     if (rendaNum) novosDados.renda = String(rendaNum)
                     if (scoreVal) novosDados.score = String(scoreVal)
                     if (telefone) novosDados.telefone = telefone
-                    if (basicos.nomeMae) novosDados.nome_mae = basicos.nomeMae
+                    if (basicos.nomeMae || basicos.NomeMae) novosDados.nome_mae = basicos.nomeMae || basicos.NomeMae
 
                     if (Object.keys(novosDados).length > 0) {
                         const { error: updateError } = await supabase
@@ -61,6 +66,7 @@ export async function POST(request: NextRequest) {
                             .eq('id', clienteId)
 
                         if (updateError) {
+                            console.error(`[Proxy API] Erro ao atualizar Supabase para ${cpfLimpo}:`, updateError)
                             resultados.push({ cpf: cpfLimpo, sucesso: false, erro: updateError.message })
                         } else {
                             resultados.push({ cpf: cpfLimpo, sucesso: true, dados: novosDados })
@@ -69,13 +75,16 @@ export async function POST(request: NextRequest) {
                         resultados.push({ cpf: cpfLimpo, sucesso: false, erro: 'API retornou dados mas nenhum campo útil encontrado' })
                     }
                 } else {
+                    const erroMsg = result?.reason || result?.statusMsg || result?.StatusMsg || 'erro desconhecido'
+                    console.warn(`[Proxy API] Falha na consulta ${cpfLimpo}: Status ${result?.status} - ${erroMsg}`)
                     resultados.push({
                         cpf: cpfLimpo,
                         sucesso: false,
-                        erro: `API status ${result?.status}: ${result?.reason || result?.statusMsg || 'erro desconhecido'}`
+                        erro: `API status ${result?.status}: ${erroMsg}`
                     })
                 }
             } catch (err: any) {
+                console.error(`[Proxy API] Erro fatal na consulta ${cpfItem.cpf}:`, err)
                 resultados.push({ cpf: cpfLimpo, sucesso: false, erro: err.message })
             }
 
