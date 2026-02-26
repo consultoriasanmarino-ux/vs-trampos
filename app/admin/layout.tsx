@@ -60,7 +60,7 @@ function AdminContent({ children }: { children: React.ReactNode }) {
     }
 
     const handleSelectBank = (banco: Banco) => {
-        setSelectedBank(banco.id, banco.nome)
+        setSelectedBank(banco.id, banco.nome, banco.cor)
         setSelectorOpen(false)
     }
 
@@ -127,8 +127,8 @@ function AdminContent({ children }: { children: React.ReactNode }) {
                                 key={item.href}
                                 href={item.href}
                                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-300 group relative overflow-hidden ${isActive
-                                        ? 'text-white shadow-lg'
-                                        : 'text-gray-500 hover:text-white hover:bg-white/[0.03]'
+                                    ? 'text-white shadow-lg'
+                                    : 'text-gray-500 hover:text-white hover:bg-white/[0.03]'
                                     }`}
                                 style={isActive ? {
                                     background: `linear-gradient(135deg, rgba(${theme.primaryRGB}, 0.25), rgba(${theme.primaryRGB}, 0.1))`,
@@ -196,12 +196,12 @@ function AdminContent({ children }: { children: React.ReactNode }) {
                                             key={banco.id}
                                             onClick={() => handleSelectBank(banco)}
                                             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-200 ${selectedBankId === banco.id
-                                                    ? 'bg-white/[0.08] text-white'
-                                                    : 'text-gray-400 hover:text-white hover:bg-white/[0.04]'
+                                                ? 'bg-white/[0.08] text-white'
+                                                : 'text-gray-400 hover:text-white hover:bg-white/[0.04]'
                                                 }`}
                                         >
-                                            <div className="w-2.5 h-2.5 rounded-full transition-all duration-300" style={{
-                                                background: selectedBankId === banco.id ? theme.primary : 'rgba(255,255,255,0.1)'
+                                            <div className="w-3 h-3 rounded-full transition-all duration-300 border border-white/10" style={{
+                                                background: banco.cor || '#7c3aed'
                                             }} />
                                             <span className="text-sm font-medium">{banco.nome}</span>
                                             {selectedBankId === banco.id && (
@@ -251,7 +251,7 @@ function AdminContent({ children }: { children: React.ReactNode }) {
                                         onClick={() => handleSelectBank(banco)}
                                         className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-gray-300 hover:text-white hover:bg-white/[0.06] hover:border-white/[0.1] transition-all duration-300 group"
                                     >
-                                        <Landmark size={16} className="text-gray-600 group-hover:text-white transition-colors" />
+                                        <div className="w-4 h-4 rounded-full border border-white/10 shrink-0" style={{ background: banco.cor || '#7c3aed' }} />
                                         <span className="text-sm font-medium">{banco.nome}</span>
                                     </button>
                                 ))}

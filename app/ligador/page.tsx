@@ -6,7 +6,7 @@ import {
     CreditCard, TrendingUp, Star, Landmark, Zap, Lock
 } from 'lucide-react'
 import { supabase, Cliente, Banco } from '@/lib/supabase'
-import { getThemeForBank } from '@/lib/bank-theme'
+import { themeFromColor } from '@/lib/bank-theme'
 
 export default function LigadorPage() {
     const [clientes, setClientes] = useState<Cliente[]>([])
@@ -81,7 +81,7 @@ export default function LigadorPage() {
         return c.cpf?.toLowerCase().includes(termo) || c.nome?.toLowerCase().includes(termo)
     })
 
-    const theme = bancoSelecionado ? getThemeForBank(bancoSelecionado.nome) : null
+    const theme = bancoSelecionado ? themeFromColor(bancoSelecionado.cor) : null
 
     const statusBadge = (status: string | null) => {
         switch (status) {
@@ -129,14 +129,14 @@ export default function LigadorPage() {
                         <div className="space-y-2">
                             {bancos.map((banco) => {
                                 const temFichas = bancosComFichas.has(banco.id)
-                                const bancoTheme = getThemeForBank(banco.nome)
+                                const bancoTheme = themeFromColor(banco.cor)
                                 return (
                                     <button
                                         key={banco.id}
                                         onClick={() => setBancoSelecionado(banco)}
                                         className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all duration-300 group relative overflow-hidden ${temFichas
-                                                ? 'bg-white/[0.03] border-white/[0.06] text-gray-300 hover:text-white hover:bg-white/[0.06] hover:border-white/[0.1]'
-                                                : 'bg-white/[0.01] border-white/[0.03] text-gray-600'
+                                            ? 'bg-white/[0.03] border-white/[0.06] text-gray-300 hover:text-white hover:bg-white/[0.06] hover:border-white/[0.1]'
+                                            : 'bg-white/[0.01] border-white/[0.03] text-gray-600'
                                             }`}
                                     >
                                         <div
