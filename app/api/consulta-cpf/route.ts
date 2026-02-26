@@ -89,14 +89,21 @@ export async function POST(request: NextRequest) {
                 const nome = basicos.nome || basicos.Nome || basicos.name || null
 
                 // Data de nascimento - Converter DD/MM/YYYY para YYYY-MM-DD
-                let dataNasc = basicos.dataNascimento || basicos.DataNascimento || basicos.data_nascimento || basicos.nascimento || null
-                if (dataNasc && typeof dataNasc === 'string' && dataNasc.includes('/')) {
-                    const parts = dataNasc.split('/')
-                    if (parts.length === 3) {
-                        // Assume DD/MM/YYYY
-                        dataNasc = `${parts[2]}-${parts[1]}-${parts[0]}`
+                let rawDataNasc = basicos.dataNascimento || basicos.DataNascimento || basicos.data_nascimento || basicos.nascimento || null
+                let dataNasc = null
+
+                if (rawDataNasc) {
+                    const dataStr = String(rawDataNasc).trim()
+                    // Detecta formato DD/MM/YYYY
+                    const match = dataStr.match(/^(\d{2})[/-](\d{2})[/-](\d{4})/)
+                    if (match) {
+                        dataNasc = `${match[3]}-${match[2]}-${match[1]}`
+                    } else {
+                        dataNasc = dataStr // Mantém como está se já for ISO ou outro
                     }
                 }
+
+                console.log(`[API] CPF ${cpfLimpo} | Data Original: ${rawDataNasc} | Convertida: ${dataNasc}`)
 
                 // Telefone - pega o primeiro disponível
                 let telefone = null
