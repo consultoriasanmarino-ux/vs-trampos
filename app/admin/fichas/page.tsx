@@ -5,7 +5,7 @@ import {
     Users, Search, Smartphone, Phone, AlertTriangle,
     Star, Filter, RefreshCw, Calendar, UserCheck,
     ShieldCheck, DollarSign, ExternalLink, Trash2,
-    ChevronDown, Check, X
+    ChevronDown, Check, X, UserCog
 } from 'lucide-react'
 import { supabase, Cliente, Banco } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
@@ -64,17 +64,17 @@ export default function FichasAdminPage() {
     }
 
     const handleAtribuir = async (clienteId: string, ligadorId: string | null) => {
+        // Mostra animação de 'processando' localmente se quiser, mas aqui vamos direto ao ponto
         const { error } = await supabase
             .from('clientes')
             .update({ atribuido_a: ligadorId })
             .eq('id', clienteId)
 
         if (!error) {
-            setLeads(prev => prev.map(l =>
-                l.id === clienteId ? { ...l, atribuido_a: ligadorId } : l
-            ))
+            // Remove a ficha da lista após atribuir (conforme solicitado: "a ficha tem que sumir dali")
+            setLeads(prev => prev.filter(l => l.id !== clienteId))
+            setAssigningId(null)
         }
-        setAssigningId(null)
     }
 
     const handleDeletar = async (id: string) => {
@@ -102,33 +102,33 @@ export default function FichasAdminPage() {
     const statusBadge = (status: string | null, telefone: string | null) => {
         if (!status && telefone) {
             return (
-                <span className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-500/10 text-purple-400 rounded-full text-[10px] font-bold border border-purple-500/10">
-                    <RefreshCw size={10} className="animate-spin" /> ANALISANDO...
+                <span className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/10 text-purple-400 rounded-lg text-[10px] font-bold border border-purple-500/10 shadow-[0_0_15px_rgba(168,85,247,0.1)]">
+                    <RefreshCw size={12} className="animate-spin" /> ANALISANDO...
                 </span>
             )
         }
         switch (status) {
             case 'ativo':
                 return (
-                    <span className="flex items-center gap-1.5 px-2.5 py-1 bg-green-500/10 text-green-400 rounded-full text-[10px] font-bold border border-green-500/10">
-                        <Smartphone size={10} /> WHATSAPP
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg text-[10px] font-bold border border-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+                        <Smartphone size={12} /> WHATSAPP
                     </span>
                 )
             case 'fixo':
                 return (
-                    <span className="flex items-center gap-1.5 px-2.5 py-1 bg-yellow-500/10 text-yellow-400 rounded-full text-[10px] font-bold border border-yellow-500/10">
-                        <Phone size={10} /> FIXO
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 text-amber-400 rounded-lg text-[10px] font-bold border border-amber-500/10 shadow-[0_0_15px_rgba(245,158,11,0.1)]">
+                        <Phone size={12} /> FIXO
                     </span>
                 )
             case 'invalido':
                 return (
-                    <span className="flex items-center gap-1.5 px-2.5 py-1 bg-red-500/10 text-red-400 rounded-full text-[10px] font-bold border border-red-500/10">
-                        <AlertTriangle size={10} /> INVÁLIDO
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 text-rose-400 rounded-lg text-[10px] font-bold border border-rose-500/10 shadow-[0_0_15px_rgba(244,63,94,0.1)]">
+                        <AlertTriangle size={12} /> INVÁLIDO
                     </span>
                 )
             default:
                 return (
-                    <span className="flex items-center gap-1.5 px-2.5 py-1 bg-white/5 text-gray-500 rounded-full text-[10px] font-bold border border-white/10">
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 text-gray-500 rounded-lg text-[10px] font-bold border border-white/10">
                         SEM INFO
                     </span>
                 )
@@ -144,47 +144,59 @@ export default function FichasAdminPage() {
     }
 
     return (
-        <div className="p-6 lg:p-8 animate-fade-in">
+        <div className="p-6 lg:p-10 animate-fade-in relative">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-8">
-                <div>
-                    <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-3">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-10">
+                <div className="animate-slide-in-left">
+                    <h1 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-4">
                         Fichas Detalhadas
                         {selectedBankName && (
-                            <span
-                                className="text-xs font-bold px-3 py-1 rounded-lg uppercase tracking-wider"
-                                style={{
-                                    background: `rgba(${theme.primaryRGB}, 0.1)`,
-                                    color: theme.primary,
-                                    border: `1px solid rgba(${theme.primaryRGB}, 0.2)`
-                                }}
-                            >
-                                {selectedBankName}
-                            </span>
+                            <div className="relative group">
+                                <span
+                                    className="text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-widest bg-gradient-to-r from-white/10 to-transparent border border-white/10 shadow-2xl"
+                                    style={{ color: theme.primary }}
+                                >
+                                    {selectedBankName}
+                                </span>
+                                <div
+                                    className="absolute -inset-1 blur-lg opacity-30 group-hover:opacity-60 transition-opacity duration-700 pointer-events-none"
+                                    style={{ backgroundColor: theme.primary }}
+                                />
+                            </div>
                         )}
                     </h1>
-                    <p className="text-gray-600 text-sm mt-1">
-                        {leadsFiltrados.length} ficha(s) • Clique em "Atribuir" para enviar ao Ligador
+                    <p className="text-gray-500 text-sm mt-2 font-medium">
+                        {leadsFiltrados.length === 0 ? 'Nenhuma ficha disponível' : `${leadsFiltrados.length} ficha(s) pendentes de ação`}
                     </p>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-4 animate-slide-in-right">
                     <button
                         onClick={carregarFichas}
-                        className="glass p-2.5 rounded-xl text-gray-400 hover:text-white transition-all group"
+                        className="glass p-3.5 rounded-2xl text-gray-400 hover:text-white hover:scale-110 active:scale-95 transition-all group border-white/10"
                     >
-                        <RefreshCw size={18} className={loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'} />
+                        <RefreshCw size={20} className={loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-700'} />
                     </button>
-                    <div className="h-10 w-[1px] bg-white/5 mx-1" />
-                    <div className="flex -space-x-2">
-                        {ligadores.slice(0, 3).map((l) => (
-                            <div key={l.id} className="w-8 h-8 rounded-full border-2 border-[#030303] bg-violet-600 flex items-center justify-center text-[10px] font-bold text-white">
-                                {l.nome.charAt(0)}
+                    <div className="h-10 w-[1px] bg-gradient-to-b from-transparent via-white/10 to-transparent mx-2" />
+                    <div className="flex -space-x-3">
+                        {ligadores.slice(0, 4).map((l, idx) => (
+                            <div
+                                key={l.id}
+                                className="w-10 h-10 rounded-2xl border-2 border-[#030303] flex items-center justify-center text-xs font-black text-white shadow-xl relative group transform hover:-translate-y-1 transition-transform"
+                                style={{
+                                    background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary + '88'})`,
+                                    zIndex: 10 + idx
+                                }}
+                            >
+                                {l.nome.charAt(0).toUpperCase()}
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                                    {l.nome}
+                                </div>
                             </div>
                         ))}
-                        {ligadores.length > 3 && (
-                            <div className="w-8 h-8 rounded-full border-2 border-[#030303] bg-gray-800 flex items-center justify-center text-[10px] font-bold text-gray-400">
-                                +{ligadores.length - 3}
+                        {ligadores.length > 4 && (
+                            <div className="w-10 h-10 rounded-2xl border-2 border-[#030303] bg-gray-900 flex items-center justify-center text-[11px] font-black text-gray-400 z-10">
+                                +{ligadores.length - 4}
                             </div>
                         )}
                     </div>
@@ -192,44 +204,44 @@ export default function FichasAdminPage() {
             </div>
 
             {/* Filters Bar */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-10">
                 <div className="relative col-span-1 md:col-span-2">
-                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-600" size={16} />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600" size={18} />
                     <input
                         type="text"
                         value={busca}
                         onChange={(e) => setBusca(e.target.value)}
                         placeholder="Buscar por nome, CPF ou celular..."
-                        className="w-full pl-10 pr-4 py-3 glass rounded-2xl text-white placeholder-gray-600 text-sm focus:outline-none focus:ring-2 transition-all"
-                        style={{ '--tw-ring-color': `rgba(${theme.primaryRGB}, 0.4)` } as any}
+                        className="w-full pl-12 pr-6 py-4 glass rounded-3xl text-white placeholder-gray-700 text-sm font-medium focus:outline-none focus:ring-4 transition-all border-white/5"
+                        style={{ '--tw-ring-color': `rgba(${theme.primaryRGB}, 0.15)` } as any}
                     />
                 </div>
 
-                <div className="relative">
-                    <Filter className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-600" size={14} />
+                <div className="relative group">
+                    <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-white transition-colors" size={16} />
                     <select
                         value={filtroStatus}
                         onChange={(e) => setFiltroStatus(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 glass rounded-2xl text-white text-sm focus:outline-none appearance-none cursor-pointer"
+                        className="w-full pl-12 pr-6 py-4 glass rounded-3xl text-white text-sm font-bold focus:outline-none appearance-none cursor-pointer border-white/5 hover:bg-white/[0.05] transition-all"
                     >
-                        <option value="todos" className="bg-[#111]">Todos Status</option>
-                        <option value="ativo" className="bg-[#111]">WhatsApp</option>
-                        <option value="fixo" className="bg-[#111]">Fixo</option>
-                        <option value="invalido" className="bg-[#111]">Inválido</option>
+                        <option value="todos" className="bg-[#0a0a0a]">TODOS STATUS</option>
+                        <option value="ativo" className="bg-[#0a0a0a]">WHATSAPP</option>
+                        <option value="fixo" className="bg-[#0a0a0a]">FIXO</option>
+                        <option value="invalido" className="bg-[#0a0a0a]">INVÁLIDO</option>
                     </select>
                 </div>
 
-                <div className="relative">
-                    <UserCheck className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-600" size={14} />
+                <div className="relative group">
+                    <UserCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-white transition-colors" size={16} />
                     <select
                         value={filtroLigador}
                         onChange={(e) => setFiltroLigador(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 glass rounded-2xl text-white text-sm focus:outline-none appearance-none cursor-pointer"
+                        className="w-full pl-12 pr-6 py-4 glass rounded-3xl text-white text-sm font-bold focus:outline-none appearance-none cursor-pointer border-white/5 hover:bg-white/[0.05] transition-all"
                     >
-                        <option value="todos" className="bg-[#111]">Todos Ligadores</option>
-                        <option value="nenhum" className="bg-[#111]">Não atribuídos</option>
+                        <option value="todos" className="bg-[#0a0a0a]">TODOS LIGADORES</option>
+                        <option value="nenhum" className="bg-[#0a0a0a]">NÃO ATRIBUÍDOS</option>
                         {ligadores.map(l => (
-                            <option key={l.id} value={l.id} className="bg-[#111]">{l.nome}</option>
+                            <option key={l.id} value={l.id} className="bg-[#0a0a0a]">{l.nome.toUpperCase()}</option>
                         ))}
                     </select>
                 </div>
@@ -237,17 +249,23 @@ export default function FichasAdminPage() {
 
             {/* Grid display */}
             {loading ? (
-                <div className="flex flex-col items-center justify-center py-24 text-gray-600">
-                    <RefreshCw size={32} className="animate-spin mb-4" />
-                    <p className="text-sm font-medium">Carregando fichas detalhadas...</p>
+                <div className="flex flex-col items-center justify-center py-32 text-gray-600">
+                    <div className="relative w-20 h-20 mb-6">
+                        <div className="absolute inset-0 rounded-full border-4 border-white/5 border-t-transparent animate-spin" style={{ borderTopColor: theme.primary }} />
+                    </div>
+                    <p className="text-sm font-black uppercase tracking-widest opacity-50">Sincronizando Fichas...</p>
                 </div>
             ) : leadsFiltrados.length === 0 ? (
-                <div className="text-center py-24 glass rounded-3xl border border-dashed border-white/5">
-                    <Users className="mx-auto text-gray-800 mb-4" size={48} />
-                    <p className="text-gray-500 font-medium">Nenhuma ficha encontrada com estes filtros.</p>
+                <div className="text-center py-40 glass rounded-[3rem] border border-dashed border-white/10 animate-fade-in group">
+                    <div className="relative inline-block mb-6">
+                        <Users className="text-gray-800 transition-all duration-700 group-hover:scale-110 group-hover:rotate-12" size={80} />
+                        <Star className="absolute -top-2 -right-2 text-violet-600 animate-pulse" size={24} />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-400">Tudo limpo por aqui!</h3>
+                    <p className="text-gray-600 font-medium mt-2">Nenhuma ficha pendente de atribuição foi encontrada.</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-8">
                     {leadsFiltrados.map((c, i) => {
                         const nomeLigador = getNomeLigador(c.atribuido_a)
                         const isAssigning = assigningId === c.id
@@ -255,159 +273,202 @@ export default function FichasAdminPage() {
                         return (
                             <div
                                 key={c.id}
-                                className="glass rounded-3xl p-6 card-hover animate-fade-in-up relative group border border-white/5"
-                                style={{ animationDelay: `${i * 0.03}s` }}
+                                className="glass rounded-[2.5rem] p-8 card-hover animate-fade-in-up relative group border border-white/5 hover:border-white/10 flex flex-col h-full"
+                                style={{ animationDelay: `${i * 0.05}s` }}
                             >
-                                {/* Accent overlay */}
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-white/[0.05] to-transparent rounded-bl-full pointer-events-none" />
+                                {/* Background Glow */}
+                                <div
+                                    className="absolute -top-24 -right-24 w-48 h-48 rounded-full opacity-0 group-hover:opacity-10 transition-all duration-1000 blur-3xl pointer-events-none"
+                                    style={{ backgroundColor: theme.primary }}
+                                />
 
-                                {/* Top header of card */}
-                                <div className="flex items-start justify-between mb-5">
-                                    <div className="flex items-center gap-4">
+                                {/* Header of card */}
+                                <div className="flex items-start justify-between mb-8">
+                                    <div className="flex items-center gap-5">
                                         <div
-                                            className="w-12 h-12 rounded-2xl flex items-center justify-center text-lg font-bold shadow-2xl transition-all duration-500 group-hover:scale-110"
+                                            className="w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-2xl font-black shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all duration-700 group-hover:scale-110 group-hover:rotate-3"
                                             style={{
-                                                background: `linear-gradient(135deg, rgba(${theme.primaryRGB}, 0.3), rgba(${theme.primaryRGB}, 0.1))`,
+                                                background: `linear-gradient(135deg, rgba(${theme.primaryRGB}, 0.4), rgba(${theme.primaryRGB}, 0.1))`,
                                                 color: theme.primary,
                                                 border: `1px solid rgba(${theme.primaryRGB}, 0.2)`
                                             }}
                                         >
-                                            {c.nome ? c.nome.charAt(0) : '?'}
+                                            {c.nome ? c.nome.charAt(0).toUpperCase() : '?'}
                                         </div>
                                         <div>
-                                            <h3 className="text-base font-bold text-white group-hover:text-violet-400 transition-colors">{c.nome || 'Sem Nome'}</h3>
-                                            <div className="flex items-center gap-2 mt-0.5">
-                                                <span className="text-[11px] font-mono text-gray-500">{c.cpf}</span>
-                                                <span className="w-1 h-1 rounded-full bg-gray-800" />
-                                                <span className="text-[10px] font-bold text-gray-600 uppercase">{(c.bancos as any)?.nome}</span>
+                                            <h3 className="text-lg font-black text-white group-hover:text-violet-400 transition-all leading-tight">{c.nome || 'Sem Nome'}</h3>
+                                            <div className="flex items-center gap-2.5 mt-2">
+                                                <span className="text-[11px] font-mono font-bold text-gray-500 tracking-tighter">{c.cpf}</span>
+                                                <div className="w-1.5 h-1.5 rounded-full bg-gray-800" />
+                                                <span
+                                                    className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md"
+                                                    style={{ color: theme.primary, backgroundColor: `rgba(${theme.primaryRGB}, 0.1)` }}
+                                                >
+                                                    {(c.bancos as any)?.nome || 'OUTROS'}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
-                                    {statusBadge(c.status_whatsapp, c.telefone)}
+                                    <div className="shrink-0">
+                                        {statusBadge(c.status_whatsapp, c.telefone)}
+                                    </div>
                                 </div>
 
-                                {/* Info Grid - 2x2 */}
-                                <div className="grid grid-cols-2 gap-3 mb-5">
-                                    <div className="glass-light rounded-2xl p-3 border border-white/[0.03]">
-                                        <div className="flex items-center gap-2 mb-1.5">
-                                            <DollarSign size={12} className="text-emerald-500" />
-                                            <span className="text-[9px] font-bold text-gray-600 uppercase tracking-wider">Renda</span>
+                                {/* Info Grid */}
+                                <div className="grid grid-cols-2 gap-4 mb-8">
+                                    <div className="glass-light rounded-2xl p-4 border border-white/5 flex flex-col justify-between">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <DollarSign size={14} className="text-emerald-500" />
+                                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Renda</span>
                                         </div>
-                                        <p className="text-sm font-bold text-white tracking-tight">
+                                        <p className="text-lg font-black text-white tracking-tighter">
                                             {c.renda ? `R$ ${c.renda.toLocaleString()}` : '—'}
                                         </p>
                                     </div>
-                                    <div className="glass-light rounded-2xl p-3 border border-white/[0.03]">
-                                        <div className="flex items-center gap-2 mb-1.5">
-                                            <Star size={12} className="text-yellow-500" />
-                                            <span className="text-[9px] font-bold text-gray-600 uppercase tracking-wider">Score</span>
+                                    <div className="glass-light rounded-2xl p-4 border border-white/5 flex flex-col justify-between">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <Star size={14} className="text-amber-500" />
+                                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Score</span>
                                         </div>
-                                        <p className="text-sm font-bold text-white tracking-tight">{c.score || '—'}</p>
+                                        <p className="text-lg font-black text-white tracking-tighter">{c.score || '—'}</p>
                                     </div>
-                                    <div className="glass-light rounded-2xl p-3 border border-white/[0.03]">
-                                        <div className="flex items-center gap-2 mb-1.5">
-                                            <Calendar size={12} className="text-violet-500" />
-                                            <span className="text-[9px] font-bold text-gray-600 uppercase tracking-wider">Nasc.</span>
-                                        </div>
-                                        <p className="text-sm font-bold text-white tracking-tight">{formatDate(c.data_nascimento)}</p>
-                                    </div>
-
-                                    {/* Atribuição - clicável */}
-                                    <div className="glass-light rounded-2xl p-3 border border-white/[0.03] relative">
-                                        <div className="flex items-center gap-2 mb-1.5">
-                                            <ShieldCheck size={12} className="text-blue-500" />
-                                            <span className="text-[9px] font-bold text-gray-600 uppercase tracking-wider">Ligador</span>
+                                    <div className="glass-light rounded-2xl p-4 border border-white/5 md:col-span-1 lg:col-span-2 flex flex-col justify-between relative overflow-hidden group/attr">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <ShieldCheck size={14} className="text-blue-500" />
+                                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Ligador Atribuído</span>
                                         </div>
                                         <button
-                                            onClick={() => setAssigningId(isAssigning ? null : c.id)}
-                                            className="text-xs font-bold text-left w-full flex items-center justify-between gap-1 hover:text-violet-400 transition-colors"
-                                            style={{ color: nomeLigador ? theme.primary : '#666' }}
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                setAssigningId(isAssigning ? null : c.id)
+                                            }}
+                                            className="text-sm font-black text-left w-full flex items-center justify-between gap-3 p-1 rounded-lg hover:bg-white/5 transition-all group/btn"
+                                            style={{ color: nomeLigador ? theme.primary : '#444' }}
                                         >
-                                            <span className="truncate">{nomeLigador || 'Atribuir →'}</span>
-                                            <ChevronDown size={10} className={`transition-transform ${isAssigning ? 'rotate-180' : ''}`} />
+                                            <span className="truncate uppercase tracking-tight">{nomeLigador || '⚠️ Aguardando Ligador'}</span>
+                                            <div className="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center group-hover/btn:bg-white/10 transition-all">
+                                                <ChevronDown size={14} className={`transition-transform duration-500 ${isAssigning ? 'rotate-180 scale-125' : ''}`} />
+                                            </div>
                                         </button>
 
-                                        {/* Dropdown de Ligadores */}
+                                        {/* Premium Dropdown Selection */}
                                         {isAssigning && (
-                                            <div className="absolute top-full left-0 right-0 mt-2 z-50 glass-strong rounded-xl p-1.5 shadow-2xl border border-white/10 animate-fade-in-up">
-                                                {/* Desatribuir */}
-                                                {c.atribuido_a && (
-                                                    <button
-                                                        onClick={() => handleAtribuir(c.id, null)}
-                                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 rounded-lg transition-all font-medium"
-                                                    >
-                                                        <X size={12} /> Remover atribuição
-                                                    </button>
-                                                )}
-                                                {ligadores.map(lig => (
-                                                    <button
-                                                        key={lig.id}
-                                                        onClick={() => handleAtribuir(c.id, lig.id)}
-                                                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg transition-all font-medium ${c.atribuido_a === lig.id
-                                                            ? 'text-violet-400 bg-violet-500/10'
-                                                            : 'text-gray-400 hover:text-white hover:bg-white/5'
-                                                            }`}
-                                                    >
-                                                        <div className="w-5 h-5 rounded-full bg-violet-600 flex items-center justify-center text-[8px] font-bold text-white shrink-0">
-                                                            {lig.nome.charAt(0)}
+                                            <div
+                                                className="absolute inset-0 z-[100] glass-strong rounded-2xl p-2.5 animate-fade-in shadow-[0_20px_60px_rgba(0,0,0,0.8)] border border-white/20 flex flex-col overflow-y-auto"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <div className="flex items-center justify-between p-2 mb-2 border-b border-white/5">
+                                                    <span className="text-[10px] font-black text-gray-500 uppercase">Selecione o Operador</span>
+                                                    <X size={14} className="text-gray-500 hover:text-white cursor-pointer" onClick={() => setAssigningId(null)} />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    {ligadores.map(lig => (
+                                                        <button
+                                                            key={lig.id}
+                                                            onClick={() => handleAtribuir(c.id, lig.id)}
+                                                            className={`w-full flex items-center gap-4 px-3 py-3 rounded-xl transition-all duration-300 group/item ${c.atribuido_a === lig.id
+                                                                ? 'bg-gradient-to-r from-violet-600/20 to-transparent'
+                                                                : 'hover:bg-white/5'
+                                                                }`}
+                                                        >
+                                                            <div
+                                                                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-lg group-hover/item:scale-110 transition-transform"
+                                                                style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary + '33'})` }}
+                                                            >
+                                                                <span className="text-xs font-black text-white">{lig.nome.charAt(0).toUpperCase()}</span>
+                                                            </div>
+                                                            <div className="flex-1 text-left">
+                                                                <p className="text-sm font-black text-white tracking-tight">{lig.nome}</p>
+                                                                <p className="text-[10px] text-gray-600 uppercase font-black tracking-widest">OPERADOR ATIVO</p>
+                                                            </div>
+                                                            {c.atribuido_a === lig.id && (
+                                                                <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center animate-bounce">
+                                                                    <Check size={12} className="text-white" />
+                                                                </div>
+                                                            )}
+                                                            <div className="opacity-0 group-hover/item:opacity-100 transition-opacity">
+                                                                <UserCheck size={16} style={{ color: theme.primary }} />
+                                                            </div>
+                                                        </button>
+                                                    ))}
+                                                    {ligadores.length === 0 && (
+                                                        <div className="py-10 text-center">
+                                                            <UserCog className="mx-auto text-gray-800 mb-2" size={32} />
+                                                            <p className="text-[10px] font-black text-gray-600 uppercase">Nenhum ligador encontrado</p>
                                                         </div>
-                                                        {lig.nome}
-                                                        {c.atribuido_a === lig.id && <Check size={12} className="ml-auto" />}
-                                                    </button>
-                                                ))}
-                                                {ligadores.length === 0 && (
-                                                    <p className="px-3 py-2 text-[10px] text-gray-600">Nenhum ligador cadastrado</p>
-                                                )}
+                                                    )}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
                                 </div>
 
-                                {/* Phone Area - todos os telefones */}
-                                <div className="space-y-2">
+                                {/* Phone Area */}
+                                <div className="space-y-3 mt-auto">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-[10px] font-black text-gray-700 uppercase tracking-[0.2em]">Contactos Disponíveis</span>
+                                        <div className="h-[1px] flex-1 bg-white/5 mx-4" />
+                                    </div>
                                     {c.telefone ? (
-                                        c.telefone.split(',').map((tel: string, idx: number) => {
-                                            const telClean = tel.trim()
-                                            return (
-                                                <div key={idx} className="bg-white/[0.02] rounded-xl p-3 flex items-center justify-between border border-white/[0.04] transition-all hover:bg-white/[0.04]">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="p-1.5 rounded-lg bg-gray-900">
-                                                            <Phone size={12} className="text-gray-500" />
+                                        <div className="max-h-[160px] overflow-y-auto pr-2 space-y-2 custom-scrollbar">
+                                            {c.telefone.split(',').map((tel: string, idx: number) => {
+                                                const telClean = tel.trim()
+                                                const isFirstWA = c.status_whatsapp === 'ativo' && idx === 0
+
+                                                return (
+                                                    <div key={idx} className="bg-white/[0.03] hover:bg-white/[0.06] rounded-2xl p-4 flex items-center justify-between border border-white/[0.05] transition-all group/phone overflow-hidden relative">
+                                                        {isFirstWA && <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500" />}
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="w-10 h-10 rounded-xl bg-gray-950 flex items-center justify-center shrink-0 border border-white/5">
+                                                                <Phone size={16} className="text-gray-500 group-hover/phone:text-white transition-colors" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[9px] font-black text-gray-700 uppercase mb-0.5 tracking-tighter">Telefone {idx + 1}</p>
+                                                                <p className="text-sm font-mono font-black text-gray-400 tracking-wider group-hover/phone:text-white transition-colors">{telClean}</p>
+                                                            </div>
                                                         </div>
-                                                        <p className="text-xs font-mono font-bold text-gray-400 tracking-wider">{telClean}</p>
+
+                                                        {/* Apenas botão se for WA (lógica simplificada para admin) */}
+                                                        {idx === 0 && c.status_whatsapp === 'ativo' && (
+                                                            <a
+                                                                href={`https://wa.me/55${telClean.replace(/\D/g, '')}`}
+                                                                target="_blank"
+                                                                className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 hover:bg-emerald-500 hover:text-white transition-all shadow-lg hover:shadow-emerald-500/20 active:scale-90"
+                                                            >
+                                                                <ExternalLink size={16} />
+                                                            </a>
+                                                        )}
                                                     </div>
-                                                    {c.status_whatsapp === 'ativo' && idx === 0 && (
-                                                        <a
-                                                            href={`https://wa.me/55${telClean.replace(/\D/g, '')}`}
-                                                            target="_blank"
-                                                            className="w-7 h-7 rounded-full bg-green-500/10 flex items-center justify-center text-green-500 hover:bg-green-500 hover:text-white transition-all"
-                                                        >
-                                                            <ExternalLink size={12} />
-                                                        </a>
-                                                    )}
-                                                </div>
-                                            )
-                                        })
+                                                )
+                                            })}
+                                        </div>
                                     ) : (
-                                        <div className="bg-white/[0.01] rounded-xl p-3 flex items-center gap-3 border border-white/[0.03] opacity-50">
-                                            <div className="p-1.5 rounded-lg bg-gray-900">
-                                                <Phone size={12} className="text-gray-700" />
-                                            </div>
-                                            <p className="text-xs font-medium text-gray-600 italic">Aguardando enriquecimento</p>
+                                        <div className="bg-white/[0.02] rounded-2xl p-6 flex flex-col items-center justify-center gap-3 border border-dashed border-white/10 opacity-40">
+                                            <RefreshCw size={24} className="text-gray-700 animate-spin-slow" />
+                                            <p className="text-[10px] font-black text-gray-600 uppercase">Processando telefones...</p>
                                         </div>
                                     )}
                                 </div>
 
-                                {/* Footer */}
-                                <div className="mt-4 pt-4 border-t border-white/[0.04] flex items-center justify-between">
-                                    <span className="text-[9px] font-medium text-gray-700">
-                                        {new Date(c.created_at).toLocaleDateString()}
-                                    </span>
+                                {/* Footer section with delete and date */}
+                                <div className="mt-8 pt-6 border-t border-white/5 flex items-center justify-between group-hover:border-white/10 transition-colors">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 rounded-lg bg-white/5">
+                                            <Calendar size={12} className="text-gray-600" />
+                                        </div>
+                                        <span className="text-[10px] font-black text-gray-600 uppercase tracking-tighter">
+                                            Entrada: {new Date(c.created_at).toLocaleDateString()}
+                                        </span>
+                                    </div>
+
                                     <button
-                                        onClick={() => handleDeletar(c.id)}
-                                        className="p-2 glass rounded-lg text-gray-600 hover:text-red-500 transition-all"
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleDeletar(c.id)
+                                        }}
+                                        className="w-10 h-10 rounded-xl glass text-gray-700 hover:text-rose-500 hover:bg-rose-500/10 hover:border-rose-500/20 transition-all active:scale-90 flex items-center justify-center"
                                     >
-                                        <Trash2 size={14} />
+                                        <Trash2 size={16} />
                                     </button>
                                 </div>
                             </div>
@@ -415,6 +476,30 @@ export default function FichasAdminPage() {
                     })}
                 </div>
             )}
+
+            {/* Injetar estilos customizados para a scrollbar fina */}
+            <style jsx global>{`
+                .custom-scrollbar::-webkit-scrollbar {
+                    width: 4px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background: rgba(255, 255, 255, 0.05);
+                    border-radius: 10px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: rgba(255, 255, 255, 0.1);
+                }
+                @keyframes spin-slow {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+                .animate-spin-slow {
+                    animation: spin-slow 8s linear infinite;
+                }
+            `}</style>
         </div>
     )
 }
