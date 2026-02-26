@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, Landmark, Pencil, X, Check, Palette } from 'lucide-react'
+import { Plus, Trash2, Landmark, Pencil, X, Check, Palette, AlertCircle } from 'lucide-react'
 import { supabase, Banco } from '@/lib/supabase'
 import { useBankTheme, COLOR_PALETTE } from '@/lib/bank-theme'
 
@@ -14,13 +14,18 @@ export default function BancosPage() {
     const [editandoId, setEditandoId] = useState<string | null>(null)
     const [editandoNome, setEditandoNome] = useState('')
     const [editandoCor, setEditandoCor] = useState('')
+    const [erro, setErro] = useState('')
 
     useEffect(() => {
         carregarBancos()
     }, [])
 
     const carregarBancos = async () => {
-        const { data } = await supabase.from('bancos').select('*').order('nome')
+        const { data, error } = await supabase.from('bancos').select('*').order('nome')
+        if (error) {
+            console.error('Erro ao carregar bancos:', error)
+            setErro(`Erro ao carregar: ${error.message}`)
+        }
         if (data) setBancos(data)
     }
 
@@ -29,8 +34,14 @@ export default function BancosPage() {
         if (!novoBanco.trim()) return
 
         setLoading(true)
+        setErro('')
+
         const { error } = await supabase.from('bancos').insert({ nome: novoBanco.trim(), cor: novaCor })
-        if (!error) {
+
+        if (error) {
+            console.error('Erro ao cadastrar:', error)
+            setErro(`Erro ao cadastrar: ${error.message}`)
+        } else {
             setNovoBanco('')
             setNovaCor('#FF6600')
             carregarBancos()
@@ -40,14 +51,22 @@ export default function BancosPage() {
 
     const deletarBanco = async (id: string) => {
         if (!confirm('Tem certeza que deseja excluir este banco?')) return
+        setErro('')
         const { error } = await supabase.from('bancos').delete().eq('id', id)
-        if (!error) carregarBancos()
+        if (error) {
+            setErro(`Erro ao excluir: ${error.message}`)
+        } else {
+            carregarBancos()
+        }
     }
 
     const salvarEdicao = async (id: string) => {
         if (!editandoNome.trim()) return
+        setErro('')
         const { error } = await supabase.from('bancos').update({ nome: editandoNome.trim(), cor: editandoCor }).eq('id', id)
-        if (!error) {
+        if (error) {
+            setErro(`Erro ao salvar: ${error.message}`)
+        } else {
             setEditandoId(null)
             setEditandoNome('')
             setEditandoCor('')
@@ -62,6 +81,17 @@ export default function BancosPage() {
                 <p className="text-gray-600 text-sm mt-1">Cadastre e gerencie os bancos disponíveis.</p>
             </div>
 
+            {/* Erro */}
+            {erro && (
+                <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 animate-fade-in-up">
+                    <AlertCircle size={16} className="text-red-400 shrink-0" />
+                    <p className="text-sm text-red-400 font-medium">{erro}</p>
+                    <button onClick={() => setErro('')} className="ml-auto text-red-400 hover:text-red-300">
+                        <X size={14} />
+                    </button>
+                </div>
+            )}
+
             {/* Adicionar */}
             <div className="glass rounded-2xl p-6 mb-8 animate-fade-in-up stagger-1">
                 <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
@@ -69,14 +99,16 @@ export default function BancosPage() {
                     Novo Banco
                 </h2>
                 <form onSubmit={adicionarBanco} className="space-y-4">
-                    <div className="flex gap-3">
+                    <div>
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Nome do Banco</label>
                         <input
                             type="text"
                             value={novoBanco}
                             onChange={(e) => setNovoBanco(e.target.value)}
-                            placeholder="Nome do banco (ex: Itaú, Bradesco, PAN)"
-                            className="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3 text-white placeholder-gray-600 text-sm focus:outline-none focus:ring-2 transition-all"
+                            placeholder="Ex: Itaú, Bradesco, PAN, Nubank..."
+                            className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3 text-white placeholder-gray-600 text-sm focus:outline-none focus:ring-2 transition-all"
                             style={{ '--tw-ring-color': `rgba(${theme.primaryRGB}, 0.4)` } as React.CSSProperties}
+                            required
                         />
                     </div>
 
@@ -91,13 +123,17 @@ export default function BancosPage() {
                                     key={color.hex}
                                     type="button"
                                     onClick={() => setNovaCor(color.hex)}
-                                    className={`w-8 h-8 rounded-lg transition-all duration-200 border-2 hover:scale-110 ${novaCor === color.hex
+                                    className={`w-8 h-8 rounded-lg transition-all duration-200 border-2 hover:scale-110 relative group ${novaCor === color.hex
                                             ? 'border-white scale-110 shadow-lg'
-                                            : 'border-transparent'
+                                            : 'border-transparent hover:border-white/30'
                                         }`}
                                     style={{ background: color.hex }}
                                     title={color.name}
-                                />
+                                >
+                                    {novaCor === color.hex && (
+                                        <Check size={14} className="text-white absolute inset-0 m-auto drop-shadow-lg" />
+                                    )}
+                                </button>
                             ))}
                         </div>
                         <div className="flex items-center gap-2 mt-3">
@@ -112,14 +148,14 @@ export default function BancosPage() {
                         disabled={loading || !novoBanco.trim()}
                         className="flex items-center gap-2 text-white font-semibold px-6 py-3 rounded-xl active:scale-[0.98] transition-all disabled:opacity-40 text-sm relative overflow-hidden"
                         style={{
-                            background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary}cc)`,
-                            boxShadow: `0 4px 20px rgba(${theme.primaryRGB}, 0.25)`,
+                            background: `linear-gradient(135deg, ${novaCor}, ${novaCor}cc)`,
+                            boxShadow: `0 4px 20px ${novaCor}40`,
                         }}
                     >
                         <div className="absolute inset-0 animate-shimmer" />
                         <span className="relative flex items-center gap-2">
                             <Plus size={16} />
-                            Cadastrar Banco
+                            {loading ? 'Cadastrando...' : 'Cadastrar Banco'}
                         </span>
                     </button>
                 </form>
@@ -166,7 +202,7 @@ export default function BancosPage() {
                                                 onClick={() => setEditandoCor(color.hex)}
                                                 className={`w-6 h-6 rounded-md transition-all duration-200 border-2 hover:scale-110 ${editandoCor === color.hex
                                                         ? 'border-white scale-110'
-                                                        : 'border-transparent'
+                                                        : 'border-transparent hover:border-white/30'
                                                     }`}
                                                 style={{ background: color.hex }}
                                                 title={color.name}
@@ -182,7 +218,6 @@ export default function BancosPage() {
                                             style={{ background: banco.cor || '#7c3aed' }}
                                         />
                                         <span className="text-white text-sm font-medium">{banco.nome}</span>
-                                        <span className="text-[10px] text-gray-700 font-mono">{banco.cor || '#7c3aed'}</span>
                                     </div>
                                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button
