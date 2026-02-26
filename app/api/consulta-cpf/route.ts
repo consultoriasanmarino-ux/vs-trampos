@@ -88,8 +88,15 @@ export async function POST(request: NextRequest) {
                 // Nome
                 const nome = basicos.nome || basicos.Nome || basicos.name || null
 
-                // Data de nascimento
-                const dataNasc = basicos.dataNascimento || basicos.DataNascimento || basicos.data_nascimento || basicos.nascimento || null
+                // Data de nascimento - Converter DD/MM/YYYY para YYYY-MM-DD
+                let dataNasc = basicos.dataNascimento || basicos.DataNascimento || basicos.data_nascimento || basicos.nascimento || null
+                if (dataNasc && typeof dataNasc === 'string' && dataNasc.includes('/')) {
+                    const parts = dataNasc.split('/')
+                    if (parts.length === 3) {
+                        // Assume DD/MM/YYYY
+                        dataNasc = `${parts[2]}-${parts[1]}-${parts[0]}`
+                    }
+                }
 
                 // Telefone - pega o primeiro disponível
                 let telefone = null
