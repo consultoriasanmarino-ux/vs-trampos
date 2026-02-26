@@ -11,13 +11,16 @@ import {
     Smartphone,
     Phone,
     RefreshCw,
+    TrendingUp,
+    ArrowUpRight,
 } from 'lucide-react'
 import { supabase, Banco } from '@/lib/supabase'
+import { useBankTheme } from '@/lib/bank-theme'
 
 export default function AdminDashboard() {
-    // State
+    const { theme, selectedBankId, selectedBankName } = useBankTheme()
+
     const [bancos, setBancos] = useState<Banco[]>([])
-    const [bancoSelecionado, setBancoSelecionado] = useState('')
     const [fileCpf, setFileCpf] = useState<File | null>(null)
     const [fileEnriquecer, setFileEnriquecer] = useState<File | null>(null)
     const [loadingCpf, setLoadingCpf] = useState(false)
@@ -25,17 +28,15 @@ export default function AdminDashboard() {
     const [statusCpf, setStatusCpf] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
     const [statusEnriquecer, setStatusEnriquecer] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
-    // Stats
     const [totalClientes, setTotalClientes] = useState(0)
     const [totalWhatsapp, setTotalWhatsapp] = useState(0)
     const [totalFixo, setTotalFixo] = useState(0)
     const [totalBancos, setTotalBancos] = useState(0)
 
-    // Carregar dados iniciais
     useEffect(() => {
         carregarBancos()
         carregarStats()
-    }, [])
+    }, [selectedBankId])
 
     const carregarBancos = async () => {
         const { data } = await supabase.from('bancos').select('*').order('nome')
@@ -46,26 +47,35 @@ export default function AdminDashboard() {
     }
 
     const carregarStats = async () => {
-        const { count: total } = await supabase.from('clientes').select('*', { count: 'exact', head: true })
-        const { count: whatsapp } = await supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('status_whatsapp', 'ativo')
-        const { count: fixo } = await supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('status_whatsapp', 'fixo')
+        let queryTotal = supabase.from('clientes').select('*', { count: 'exact', head: true })
+        let queryWa = supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('status_whatsapp', 'ativo')
+        let queryFixo = supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('status_whatsapp', 'fixo')
+
+        if (selectedBankId) {
+            queryTotal = queryTotal.eq('banco_principal_id', selectedBankId)
+            queryWa = queryWa.eq('banco_principal_id', selectedBankId)
+            queryFixo = queryFixo.eq('banco_principal_id', selectedBankId)
+        }
+
+        const { count: total } = await queryTotal
+        const { count: whatsapp } = await queryWa
+        const { count: fixo } = await queryFixo
 
         setTotalClientes(total || 0)
         setTotalWhatsapp(whatsapp || 0)
         setTotalFixo(fixo || 0)
     }
 
-    // Upload de CPFs
     const handleUploadCpf = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!fileCpf || !bancoSelecionado) return
+        if (!fileCpf || !selectedBankId) return
 
         setLoadingCpf(true)
         setStatusCpf(null)
 
         const formData = new FormData()
         formData.append('file', fileCpf)
-        formData.append('banco_id', bancoSelecionado)
+        formData.append('banco_id', selectedBankId)
 
         try {
             const res = await fetch('/api/import', { method: 'POST', body: formData })
@@ -74,7 +84,6 @@ export default function AdminDashboard() {
             if (res.ok) {
                 setStatusCpf({ type: 'success', message: data.message })
                 setFileCpf(null)
-                setBancoSelecionado('')
                 carregarStats()
             } else {
                 setStatusCpf({ type: 'error', message: data.error })
@@ -86,7 +95,6 @@ export default function AdminDashboard() {
         }
     }
 
-    // Upload de Enriquecimento
     const handleUploadEnriquecer = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!fileEnriquecer) return
@@ -116,96 +124,143 @@ export default function AdminDashboard() {
     }
 
     return (
-        <div className="p-8">
+        <div className="p-6 lg:p-8">
             {/* Header */}
-            <div className="flex items-center justify-between mb-10">
+            <div className="flex items-center justify-between mb-8 animate-fade-in-up">
                 <div>
-                    <h1 className="text-2xl font-bold text-white tracking-tight">Dashboard</h1>
-                    <p className="text-gray-600 text-sm mt-1">Gerencie leads, bancos e importações.</p>
+                    <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+                        Dashboard
+                        {selectedBankName && (
+                            <span
+                                className="text-sm font-semibold px-3 py-1 rounded-lg"
+                                style={{
+                                    background: `rgba(${theme.primaryRGB}, 0.1)`,
+                                    color: theme.primary,
+                                }}
+                            >
+                                {selectedBankName}
+                            </span>
+                        )}
+                    </h1>
+                    <p className="text-gray-600 text-sm mt-1">
+                        {selectedBankName ? `Gerenciando leads do ${selectedBankName}` : 'Selecione um banco para começar'}
+                    </p>
                 </div>
                 <button
                     onClick={() => { carregarBancos(); carregarStats() }}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-white/[0.04] border border-white/[0.06] rounded-xl text-gray-400 hover:text-white hover:bg-white/[0.06] transition-all text-sm"
+                    className="flex items-center gap-2 px-4 py-2.5 glass rounded-xl text-gray-400 hover:text-white transition-all text-sm group"
                 >
-                    <RefreshCw size={14} />
+                    <RefreshCw size={14} className="group-hover:rotate-180 transition-transform duration-500" />
                     Atualizar
                 </button>
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-                <StatCard icon={<Users size={20} />} label="Total Clientes" value={totalClientes} color="blue" />
-                <StatCard icon={<Smartphone size={20} />} label="WhatsApp Ativo" value={totalWhatsapp} color="green" />
-                <StatCard icon={<Phone size={20} />} label="Telefone Fixo" value={totalFixo} color="yellow" />
-                <StatCard icon={<Database size={20} />} label="Bancos" value={totalBancos} color="purple" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                <StatCard
+                    icon={<Users size={20} />}
+                    label="Total Clientes"
+                    value={totalClientes}
+                    theme={theme}
+                    delay="stagger-1"
+                />
+                <StatCard
+                    icon={<Smartphone size={20} />}
+                    label="WhatsApp Ativo"
+                    value={totalWhatsapp}
+                    theme={theme}
+                    delay="stagger-2"
+                    accent="green"
+                />
+                <StatCard
+                    icon={<Phone size={20} />}
+                    label="Telefone Fixo"
+                    value={totalFixo}
+                    theme={theme}
+                    delay="stagger-3"
+                    accent="yellow"
+                />
+                <StatCard
+                    icon={<Database size={20} />}
+                    label="Bancos"
+                    value={totalBancos}
+                    theme={theme}
+                    delay="stagger-4"
+                    accent="purple"
+                />
             </div>
 
             {/* Upload Modules */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Import CPF */}
-                <div className="bg-[#0a0a0a] border border-white/[0.04] rounded-2xl p-6">
+                <div className={`glass rounded-2xl p-6 card-hover animate-fade-in-up stagger-2`}>
                     <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2.5 bg-blue-500/10 rounded-xl">
-                            <Upload className="text-blue-500" size={20} />
+                        <div
+                            className="p-2.5 rounded-xl transition-all duration-500"
+                            style={{ background: `rgba(${theme.primaryRGB}, 0.1)` }}
+                        >
+                            <Upload size={20} style={{ color: theme.primary }} />
                         </div>
                         <div>
                             <h2 className="text-base font-semibold text-white">Importar CPFs</h2>
-                            <p className="text-xs text-gray-600">Arquivo .txt com um CPF por linha</p>
+                            <p className="text-xs text-gray-600">
+                                Vinculado ao <span style={{ color: theme.primary }} className="font-semibold">{selectedBankName || '...'}</span>
+                            </p>
                         </div>
                     </div>
 
                     <form onSubmit={handleUploadCpf} className="space-y-4">
-                        {/* Seleção do Banco */}
+                        {/* Upload area */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Banco</label>
-                            <select
-                                value={bancoSelecionado}
-                                onChange={(e) => setBancoSelecionado(e.target.value)}
-                                className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 appearance-none cursor-pointer"
-                                required
+                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Arquivo TXT</label>
+                            <div
+                                className="border border-dashed rounded-2xl p-8 text-center transition-all duration-300 cursor-pointer relative group"
+                                style={{ borderColor: `rgba(${theme.primaryRGB}, 0.15)` }}
                             >
-                                <option value="" className="bg-[#111]">Selecione um banco...</option>
-                                {bancos.map((b) => (
-                                    <option key={b.id} value={b.id} className="bg-[#111]">{b.nome}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        {/* Upload */}
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Arquivo</label>
-                            <div className="border border-dashed border-white/[0.08] rounded-xl p-6 text-center hover:border-blue-500/30 transition-colors cursor-pointer relative group">
                                 <input
                                     type="file"
                                     accept=".txt"
                                     onChange={(e) => setFileCpf(e.target.files?.[0] || null)}
                                     className="absolute inset-0 opacity-0 cursor-pointer"
-                                    required
                                 />
-                                <FileText className="mx-auto text-gray-700 group-hover:text-blue-500 mb-2 transition-colors" size={32} />
+                                <FileText
+                                    className="mx-auto mb-3 transition-all duration-300 group-hover:scale-110"
+                                    size={36}
+                                    style={{ color: fileCpf ? theme.primary : 'rgb(50,50,50)' }}
+                                />
                                 <p className="text-xs text-gray-500">
-                                    {fileCpf ? <span className="text-blue-400 font-medium">{fileCpf.name}</span> : 'Clique ou arraste o .txt'}
+                                    {fileCpf ? (
+                                        <span style={{ color: theme.primary }} className="font-semibold">{fileCpf.name}</span>
+                                    ) : (
+                                        'Clique ou arraste o arquivo .txt'
+                                    )}
                                 </p>
+                                <p className="text-[10px] text-gray-700 mt-1">Um CPF por linha</p>
                             </div>
                         </div>
 
-                        {statusCpf && <StatusAlert type={statusCpf.type} message={statusCpf.message} />}
+                        {statusCpf && <StatusAlert type={statusCpf.type} message={statusCpf.message} theme={theme} />}
 
                         <button
                             type="submit"
-                            disabled={loadingCpf || !fileCpf || !bancoSelecionado}
-                            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 rounded-xl shadow-lg shadow-blue-600/20 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+                            disabled={loadingCpf || !fileCpf || !selectedBankId}
+                            className="w-full text-white font-semibold py-3.5 rounded-xl active:scale-[0.98] transition-all disabled:opacity-30 disabled:cursor-not-allowed text-sm relative overflow-hidden"
+                            style={{
+                                background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary}cc)`,
+                                boxShadow: `0 4px 20px rgba(${theme.primaryRGB}, 0.3)`,
+                            }}
                         >
-                            {loadingCpf ? 'Processando...' : 'Importar CPFs'}
+                            <div className="absolute inset-0 animate-shimmer" />
+                            <span className="relative">{loadingCpf ? 'Processando...' : 'Importar CPFs'}</span>
                         </button>
                     </form>
                 </div>
 
                 {/* Enriquecer Leads */}
-                <div className="bg-[#0a0a0a] border border-white/[0.04] rounded-2xl p-6">
+                <div className="glass rounded-2xl p-6 card-hover animate-fade-in-up stagger-3">
                     <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2.5 bg-green-500/10 rounded-xl">
-                            <Database className="text-green-500" size={20} />
+                        <div className="p-2.5 rounded-xl bg-emerald-500/10">
+                            <TrendingUp size={20} className="text-emerald-500" />
                         </div>
                         <div>
                             <h2 className="text-base font-semibold text-white">Enriquecer Leads</h2>
@@ -215,37 +270,44 @@ export default function AdminDashboard() {
 
                     <form onSubmit={handleUploadEnriquecer} className="space-y-4">
                         <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Arquivo CSV ou JSON</label>
-                            <div className="border border-dashed border-white/[0.08] rounded-xl p-6 text-center hover:border-green-500/30 transition-colors cursor-pointer relative group">
+                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Arquivo CSV ou JSON</label>
+                            <div className="border border-dashed border-emerald-500/15 rounded-2xl p-8 text-center transition-all cursor-pointer relative group hover:border-emerald-500/30">
                                 <input
                                     type="file"
                                     accept=".csv,.json,.txt"
                                     onChange={(e) => setFileEnriquecer(e.target.files?.[0] || null)}
                                     className="absolute inset-0 opacity-0 cursor-pointer"
-                                    required
                                 />
-                                <FileText className="mx-auto text-gray-700 group-hover:text-green-500 mb-2 transition-colors" size={32} />
+                                <Database
+                                    className="mx-auto mb-3 transition-all duration-300 group-hover:scale-110"
+                                    size={36}
+                                    style={{ color: fileEnriquecer ? '#10b981' : 'rgb(50,50,50)' }}
+                                />
                                 <p className="text-xs text-gray-500">
-                                    {fileEnriquecer ? <span className="text-green-400 font-medium">{fileEnriquecer.name}</span> : 'Clique ou arraste o archivo'}
+                                    {fileEnriquecer ? (
+                                        <span className="text-emerald-400 font-semibold">{fileEnriquecer.name}</span>
+                                    ) : (
+                                        'Clique ou arraste o archivo'
+                                    )}
                                 </p>
                             </div>
                         </div>
 
-                        <div className="bg-white/[0.02] border border-white/[0.04] rounded-xl p-4">
-                            <p className="text-[10px] text-gray-600 uppercase tracking-wider font-semibold mb-2">Colunas Esperadas</p>
+                        <div className="glass rounded-xl p-3">
+                            <p className="text-[9px] text-gray-600 uppercase tracking-wider font-bold mb-2">Colunas Esperadas</p>
                             <div className="flex flex-wrap gap-1.5">
                                 {['cpf', 'nome', 'renda', 'score', 'telefone'].map(col => (
-                                    <span key={col} className="px-2 py-1 bg-white/[0.04] border border-white/[0.06] rounded-md text-[10px] text-gray-400 font-mono">{col}</span>
+                                    <span key={col} className="px-2 py-0.5 bg-white/[0.04] border border-white/[0.06] rounded-md text-[10px] text-gray-400 font-mono">{col}</span>
                                 ))}
                             </div>
                         </div>
 
-                        {statusEnriquecer && <StatusAlert type={statusEnriquecer.type} message={statusEnriquecer.message} />}
+                        {statusEnriquecer && <StatusAlert type={statusEnriquecer.type} message={statusEnriquecer.message} theme={theme} />}
 
                         <button
                             type="submit"
                             disabled={loadingEnriquecer || !fileEnriquecer}
-                            className="w-full bg-green-600 hover:bg-green-500 text-white font-semibold py-3 rounded-xl shadow-lg shadow-green-600/20 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+                            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-emerald-600/20 active:scale-[0.98] transition-all disabled:opacity-30 disabled:cursor-not-allowed text-sm"
                         >
                             {loadingEnriquecer ? 'Processando...' : 'Enriquecer Leads'}
                         </button>
@@ -256,29 +318,38 @@ export default function AdminDashboard() {
     )
 }
 
-function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: number; color: string }) {
-    const colors: Record<string, string> = {
-        blue: 'bg-blue-500/10 text-blue-500',
-        green: 'bg-green-500/10 text-green-500',
-        yellow: 'bg-yellow-500/10 text-yellow-500',
-        purple: 'bg-purple-500/10 text-purple-500',
+function StatCard({ icon, label, value, theme, delay, accent }: {
+    icon: React.ReactNode; label: string; value: number; theme: any; delay: string; accent?: string
+}) {
+    const colors: Record<string, { bg: string; text: string }> = {
+        green: { bg: 'rgba(34, 197, 94, 0.1)', text: '#22c55e' },
+        yellow: { bg: 'rgba(234, 179, 8, 0.1)', text: '#eab308' },
+        purple: { bg: 'rgba(168, 85, 247, 0.1)', text: '#a855f7' },
     }
 
+    const c = accent ? colors[accent] : { bg: `rgba(${theme.primaryRGB}, 0.1)`, text: theme.primary }
+
     return (
-        <div className="bg-[#0a0a0a] border border-white/[0.04] rounded-2xl p-5">
-            <div className="flex items-center gap-3 mb-3">
-                <div className={`p-2 rounded-lg ${colors[color]}`}>{icon}</div>
+        <div className={`glass rounded-2xl p-5 card-hover animate-fade-in-up ${delay} relative overflow-hidden`}>
+            <div className="flex items-center justify-between mb-3">
+                <div className="p-2 rounded-lg transition-all duration-500" style={{ background: c.bg }}>
+                    <div style={{ color: c.text }}>{icon}</div>
+                </div>
+                <ArrowUpRight size={14} className="text-gray-700" />
             </div>
             <p className="text-2xl font-bold text-white">{value.toLocaleString()}</p>
-            <p className="text-xs text-gray-600 mt-1 font-medium uppercase tracking-wider">{label}</p>
+            <p className="text-[10px] text-gray-600 mt-0.5 font-semibold uppercase tracking-wider">{label}</p>
+
+            {/* Decorative line */}
+            <div className="absolute bottom-0 left-0 right-0 h-[2px] opacity-30" style={{ background: `linear-gradient(to right, transparent, ${c.text}, transparent)` }} />
         </div>
     )
 }
 
-function StatusAlert({ type, message }: { type: 'success' | 'error'; message: string }) {
+function StatusAlert({ type, message, theme }: { type: 'success' | 'error'; message: string; theme: any }) {
     return (
-        <div className={`p-3 rounded-xl flex items-center gap-2.5 text-sm ${type === 'success'
-                ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+        <div className={`p-3 rounded-xl flex items-center gap-2.5 animate-fade-in-up ${type === 'success'
+                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                 : 'bg-red-500/10 text-red-400 border border-red-500/20'
             }`}>
             {type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}

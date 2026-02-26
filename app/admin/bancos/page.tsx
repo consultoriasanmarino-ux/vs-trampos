@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react'
 import { Plus, Trash2, Landmark, Pencil, X, Check } from 'lucide-react'
 import { supabase, Banco } from '@/lib/supabase'
+import { useBankTheme } from '@/lib/bank-theme'
 
 export default function BancosPage() {
+    const { theme } = useBankTheme()
     const [bancos, setBancos] = useState<Banco[]>([])
     const [novoBanco, setNovoBanco] = useState('')
     const [loading, setLoading] = useState(false)
@@ -50,43 +52,48 @@ export default function BancosPage() {
     }
 
     return (
-        <div className="p-8">
-            <div className="mb-10">
+        <div className="p-6 lg:p-8">
+            <div className="mb-8 animate-fade-in-up">
                 <h1 className="text-2xl font-bold text-white tracking-tight">Bancos</h1>
                 <p className="text-gray-600 text-sm mt-1">Cadastre e gerencie os bancos disponíveis.</p>
             </div>
 
-            {/* Adicionar Banco */}
-            <form onSubmit={adicionarBanco} className="flex gap-3 mb-8">
+            {/* Adicionar */}
+            <form onSubmit={adicionarBanco} className="flex gap-3 mb-8 animate-fade-in-up stagger-1">
                 <input
                     type="text"
                     value={novoBanco}
                     onChange={(e) => setNovoBanco(e.target.value)}
                     placeholder="Nome do banco (ex: Itaú, Bradesco, PAN)"
-                    className="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3 text-white placeholder-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                    className="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3 text-white placeholder-gray-600 text-sm focus:outline-none focus:ring-2 transition-all"
+                    style={{ '--tw-ring-color': `rgba(${theme.primaryRGB}, 0.4)` } as any}
                 />
                 <button
                     type="submit"
                     disabled={loading || !novoBanco.trim()}
-                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-3 rounded-xl shadow-lg shadow-blue-600/20 active:scale-[0.98] transition-all disabled:opacity-40 text-sm"
+                    className="flex items-center gap-2 text-white font-semibold px-6 py-3 rounded-xl active:scale-[0.98] transition-all disabled:opacity-40 text-sm"
+                    style={{
+                        background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary}cc)`,
+                        boxShadow: `0 4px 20px rgba(${theme.primaryRGB}, 0.25)`,
+                    }}
                 >
                     <Plus size={16} />
                     Adicionar
                 </button>
             </form>
 
-            {/* Lista de Bancos */}
             <div className="space-y-2">
                 {bancos.length === 0 ? (
-                    <div className="text-center py-16">
+                    <div className="text-center py-16 glass rounded-2xl animate-fade-in">
                         <Landmark className="mx-auto text-gray-800 mb-3" size={48} />
                         <p className="text-gray-600 text-sm">Nenhum banco cadastrado ainda.</p>
                     </div>
                 ) : (
-                    bancos.map((banco) => (
+                    bancos.map((banco, i) => (
                         <div
                             key={banco.id}
-                            className="flex items-center justify-between bg-[#0a0a0a] border border-white/[0.04] rounded-xl px-5 py-4 group hover:border-white/[0.08] transition-all"
+                            className="flex items-center justify-between glass rounded-xl px-5 py-4 group card-hover animate-fade-in-up"
+                            style={{ animationDelay: `${i * 0.05}s` }}
                         >
                             {editandoId === banco.id ? (
                                 <div className="flex items-center gap-2 flex-1 mr-3">
@@ -94,7 +101,7 @@ export default function BancosPage() {
                                         type="text"
                                         value={editandoNome}
                                         onChange={(e) => setEditandoNome(e.target.value)}
-                                        className="flex-1 bg-white/[0.05] border border-white/[0.08] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                                        className="flex-1 bg-white/[0.05] border border-white/[0.08] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/40"
                                         autoFocus
                                         onKeyDown={(e) => { if (e.key === 'Enter') salvarEdicao(banco.id); if (e.key === 'Escape') setEditandoId(null) }}
                                     />
@@ -108,8 +115,8 @@ export default function BancosPage() {
                             ) : (
                                 <>
                                     <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-blue-500/10 rounded-lg">
-                                            <Landmark className="text-blue-500" size={16} />
+                                        <div className="p-2 rounded-lg transition-all duration-500" style={{ background: `rgba(${theme.primaryRGB}, 0.1)` }}>
+                                            <Landmark size={16} style={{ color: theme.primary }} />
                                         </div>
                                         <span className="text-white text-sm font-medium">{banco.nome}</span>
                                     </div>
