@@ -72,28 +72,38 @@ async function connectToWhatsApp() {
     });
 }
 
-// Função que fica verificando se tem números novos para validar no Supabase
 async function validarNumerosPendentes(sock) {
-    console.log('🧐 Verificando números pendentes de validação...');
-
     while (true) {
         try {
-            // Pega leads que tenham telefone mas o status_whatsapp seja nulo
+            console.log('🧐 Verificando números pendentes de validação no banco...');
+
+            // Pega leads que tenham telefone mas o status_whatsapp seja nulo ou 'pendente'
             const { data: leads, error } = await supabase
                 .from('clientes')
                 .select('id, telefone')
-                .is('status_whatsapp', null)
+                .or('status_whatsapp.is.null,status_whatsapp.eq.pendente')
                 .not('telefone', 'is', null)
                 .limit(5);
 
-            if (error) throw error;
+            if (error) {
+                console.error('❌ Erro na consulta Supabase:', error);
+                throw error;
+            }
 
-            if (leads && leads.length > 0) {
+            if (!leads || leads.length === 0) {
+                console.log('📭 Nenhum número pendente encontrado no momento.');
+            } else {
                 console.log(`🔍 Validando bloco de ${leads.length} leads...`);
 
                 for (const lead of leads) {
-                    // Pode ter múltiplos números separados por vírgula
-                    const telefones = lead.telefone.split(',').map(t => t.trim()).filter(Boolean);
+                    // ... (rest of the processing logic)
+                    const rawTelefone = String(lead.telefone || '');
+                    const telefones = rawTelefone.split(',').map(t => t.trim()).filter(Boolean);
+
+                    if (telefones.length === 0) {
+                        await supabase.from('clientes').update({ status_whatsapp: 'invalido' }).eq('id', lead.id);
+                        continue;
+                    }
 
                     let temWhatsapp = false;
                     let temFixo = false;
@@ -109,14 +119,15 @@ async function validarNumerosPendentes(sock) {
 
                         try {
                             const results = await sock.onWhatsApp(jid);
-                            const result = results[0];
+                            const result = Array.isArray(results) ? results[0] : null;
 
                             if (result?.exists) {
                                 temWhatsapp = true;
                                 resultados.push(`${tel} ✅`);
                                 console.log(`  ✅ ${tel}: ATIVO (WhatsApp)`);
                             } else {
-                                // Classifica: 10 dígitos sem DDD55 = fixo, senão inválido
+                                // Classifica: 10 dígitos (DDD + nº s/ 9) = fixo
+                                // O regex abaixo é mais seguro
                                 if (telLimpo.length === 10) {
                                     temFixo = true;
                                     resultados.push(`${tel} ☎️`);
@@ -144,7 +155,7 @@ async function validarNumerosPendentes(sock) {
                     }
 
                     // Atualiza no banco com o status geral e a lista de telefones com ícones
-                    await supabase
+                    const { error: updateError } = await supabase
                         .from('clientes')
                         .update({
                             status_whatsapp: statusGeral,
@@ -152,7 +163,11 @@ async function validarNumerosPendentes(sock) {
                         })
                         .eq('id', lead.id);
 
-                    console.log(`📋 Lead ${lead.id.substring(0, 8)}: ${statusGeral.toUpperCase()} (${resultados.join(', ')})`);
+                    if (updateError) {
+                        console.error(`❌ Erro ao atualizar lead ${lead.id}:`, updateError.message);
+                    } else {
+                        console.log(`📋 Lead ${lead.id.substring(0, 8)}: ${statusGeral.toUpperCase()} (${resultados.join(', ')})`);
+                    }
                 }
             }
         } catch (err) {

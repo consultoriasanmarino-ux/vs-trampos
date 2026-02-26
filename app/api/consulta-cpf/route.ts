@@ -134,7 +134,10 @@ export async function POST(request: NextRequest) {
                 if (dataNasc) novosDados.data_nascimento = dataNasc
                 if (rendaNum !== null) novosDados.renda = String(rendaNum)
                 if (scoreVal) novosDados.score = String(scoreVal)
-                if (telefone) novosDados.telefone = String(telefone)
+                if (telefone) {
+                    novosDados.telefone = String(telefone)
+                    novosDados.status_whatsapp = 'pendente'
+                }
                 // if (nomeMae) novosDados.nome_mae = nomeMae
 
                 console.log(`[API] CPF ${cpfLimpo} => Dados extraídos:`, JSON.stringify(novosDados))
