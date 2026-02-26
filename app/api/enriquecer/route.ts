@@ -3,11 +3,8 @@ import { supabase } from '@/lib/supabase'
 
 // Parser do formato Leads_completos.txt
 function parseTxtLeads(text: string) {
-    // Tenta dividir por traços primeiro
+    // Tenta dividir por traços primeiro ou por NOME:
     let rawBlocos = text.split(/^-{5,}$/m)
-
-    // Se só deu um bloco, pode ser que não tenha divisores de traço
-    // Mas se tiver múltiplos 'NOME:', vamos dividir por 'NOME:'
     if (rawBlocos.length <= 1) {
         rawBlocos = text.split(/(?=NOME:)/gi)
     }
@@ -22,14 +19,16 @@ function parseTxtLeads(text: string) {
 
         for (const line of lines) {
             const upLine = line.toUpperCase()
-            if (upLine.startsWith('NOME:')) {
-                lead.nome = line.substring(5).trim()
-            } else if (upLine.startsWith('CPF:')) {
-                lead.cpf = line.substring(4).trim().replace(/\D/g, '')
-            } else if (upLine.startsWith('NASC:')) {
-                lead.data_nascimento = line.substring(5).trim()
-            } else if (upLine.startsWith('RENDA:')) {
-                const parts = line.substring(6).trim()
+
+            if (upLine.includes('NOME:')) {
+                lead.nome = line.split(/NOME:/i)[1]?.trim()
+            } else if (upLine.includes('CPF:')) {
+                const cpfRaw = line.split(/CPF:/i)[1]?.trim() || ''
+                lead.cpf = cpfRaw.replace(/\D/g, '')
+            } else if (upLine.includes('NASC:')) {
+                lead.data_nascimento = line.split(/NASC:/i)[1]?.trim()
+            } else if (upLine.includes('RENDA:')) {
+                const parts = line.split(/RENDA:/i)[1]?.trim() || ''
                 const rendaPart = parts.split('|')[0]?.trim()
                 const scorePart = parts.split(/SCORE:/i)[1]?.trim()
 
@@ -41,22 +40,20 @@ function parseTxtLeads(text: string) {
                     const scoreNum = parseInt(scorePart)
                     if (!isNaN(scoreNum)) lead.score = scoreNum
                 }
-            } else if (upLine.startsWith('CELULARES:') || upLine.startsWith('TELEFONES:') || upLine.startsWith('CELULAR:')) {
-                const telsStr = line.split(':')[1]?.trim()
+            } else if (upLine.includes('CELULARES:') || upLine.includes('TELEFONES:') || upLine.includes('CELULAR:')) {
+                const parts = line.split(':')
+                const telsStr = parts.slice(1).join(':').trim()
                 if (telsStr && telsStr !== 'Nenhum' && telsStr !== 'N/A') {
-                    // Limpa e pega o primeiro telefone válido
-                    const tels = telsStr.split(',')
-                    const cleanTel = tels[0].replace(/\D/g, '')
+                    const firstTel = telsStr.split(',')[0].trim()
+                    const cleanTel = firstTel.replace(/\D/g, '')
                     if (cleanTel) lead.telefone = cleanTel
                 }
             }
         }
 
         if (lead.cpf) {
-            // Se tiver 10 dígitos, provavelmente falta o zero à esquerda
-            if (lead.cpf.length === 10) {
-                lead.cpf = '0' + lead.cpf
-            }
+            // Preenche com zeros à esquerda até ter 11 dígitos
+            lead.cpf = lead.cpf.padStart(11, '0')
 
             if (lead.cpf.length === 11) {
                 leads.push(lead)
