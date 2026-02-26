@@ -409,32 +409,68 @@ export default function LigadorPage() {
                                 </div>
                             </div>
 
-                            {/* Phone Area */}
+                            {/* Phone Area - Organized & Copyable */}
                             {c.telefone ? (
-                                <a
-                                    href={`https://wa.me/55${c.telefone.replace(/\D/g, '')}`}
-                                    target="_blank"
-                                    className={`w-full bg-white/[0.02] rounded-2xl p-4 flex items-center justify-between border border-white/[0.04] transition-all group-hover:bg-white/[0.04] group-hover:border-white/[0.1] active:scale-[0.98] ${c.status_whatsapp !== 'ativo' ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className={`p-2 rounded-xl bg-gray-900 group-hover:bg-black transition-colors`}>
-                                            <Phone size={14} className={c.status_whatsapp === 'ativo' ? 'text-green-500' : 'text-gray-600'} />
-                                        </div>
-                                        <div>
-                                            <p className="text-[9px] font-bold text-gray-700 uppercase mb-0.5">Telefone</p>
-                                            <p className="text-sm font-mono font-bold text-gray-400 tracking-wider">
-                                                {c.telefone}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    {c.status_whatsapp === 'ativo' && (
-                                        <div className="w-9 h-9 rounded-full bg-green-500 flex items-center justify-center text-white shadow-lg shadow-green-500/20">
-                                            <ExternalLink size={16} />
-                                        </div>
-                                    )}
-                                </a>
+                                <div className="space-y-2 mt-4 max-h-[160px] overflow-y-auto pr-1">
+                                    {c.telefone.split(',')
+                                        .map(t => {
+                                            const val = t.trim()
+                                            const hasWA = val.includes('✅')
+                                            const hasFix = val.includes('☎️') || val.includes('📞')
+                                            const hasInv = val.includes('❌')
+                                            // Prioridade: WA=0, Fix=1, Inv=2, Outros=3
+                                            const priority = hasWA ? 0 : (hasFix ? 1 : (hasInv ? 2 : 3))
+                                            return { val, hasWA, hasFix, hasInv, priority }
+                                        })
+                                        .sort((a, b) => a.priority - b.priority)
+                                        .map((item, idx) => {
+                                            const numOnly = item.val.replace(/\D/g, '')
+                                            return (
+                                                <div
+                                                    key={idx}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        navigator.clipboard.writeText(numOnly)
+                                                        // Pequeno feedback visual no elemento
+                                                        const target = e.currentTarget
+                                                        const originalBg = target.style.backgroundColor
+                                                        target.style.backgroundColor = 'rgba(255,255,255,0.1)'
+                                                        setTimeout(() => target.style.backgroundColor = originalBg, 200)
+                                                    }}
+                                                    className={`group/tel relative flex items-center justify-between p-3 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/10 transition-all cursor-pointer active:scale-95`}
+                                                    title="Clique para copiar"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`p-1.5 rounded-lg ${item.hasWA ? 'bg-green-500/10' : 'bg-gray-950'}`}>
+                                                            {item.hasWA ? (
+                                                                <Smartphone size={14} className="text-green-500" />
+                                                            ) : item.hasFix ? (
+                                                                <Phone size={14} className="text-amber-500" />
+                                                            ) : (
+                                                                <Phone size={14} className="text-gray-600" />
+                                                            )}
+                                                        </div>
+                                                        <span className="text-sm font-mono font-bold text-gray-400 group-hover/tel:text-white transition-colors tracking-wider">
+                                                            {item.val.replace(/[✅☎️📞❌]/g, '').trim()}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2">
+                                                        {item.hasWA && (
+                                                            <div className="flex items-center gap-1 bg-green-500/10 px-2 py-0.5 rounded-md border border-green-500/10">
+                                                                <span className="text-[8px] font-black text-green-400 uppercase">WPP</span>
+                                                            </div>
+                                                        )}
+                                                        <div className="opacity-0 group-hover/tel:opacity-100 transition-opacity">
+                                                            <Landmark size={12} className="text-gray-600" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                </div>
                             ) : (
-                                <div className="bg-white/[0.01] rounded-2xl p-4 flex items-center gap-3 border border-white/[0.03] opacity-50">
+                                <div className="bg-white/[0.01] rounded-2xl p-4 flex items-center gap-3 border border-dashed border-white/[0.05] opacity-50 mt-4">
                                     <div className="p-2 rounded-xl bg-gray-900">
                                         <Lock size={14} className="text-gray-700" />
                                     </div>

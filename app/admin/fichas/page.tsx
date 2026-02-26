@@ -67,7 +67,7 @@ export default function FichasAdminPage() {
     }
 
     const handleAtribuir = async (clienteId: string, ligadorId: string | null) => {
-        console.log(`[Fichas] Atribuindo cliente ${clienteId} ao ligador ${ligadorId}`)
+        setAssigningId(clienteId) // Mantém o ID ativo para feedback visual se necessário
 
         const { error } = await supabase
             .from('clientes')
@@ -77,15 +77,15 @@ export default function FichasAdminPage() {
         if (error) {
             console.error('[Fichas] Erro ao atribuir:', error)
             if (error.message.includes('atribuido_a_fkey')) {
-                alert('Erro de Sincronia: O ligador selecionado não foi encontrado no banco. A lista será atualizada agora, por favor tente novamente.')
-                carregarLigadores() // Força atualização da lista
+                alert('Erro de Banco de Dados (FK): O campo "atribuido_a" na tabela "clientes" ainda está apontando para o lugar errado. Por favor, execute o SQL de correção no painel do Supabase.')
             } else {
                 alert(`Erro ao atribuir: ${error.message}`)
             }
+            setAssigningId(null)
             return
         }
 
-        // Remove a ficha da lista após atribuir (conforme solicitado: "a ficha tem que sumir dali")
+        // Sucesso: A ficha some da lista (conforme solicitado)
         setLeads(prev => prev.filter(l => l.id !== clienteId))
         setAssigningId(null)
     }

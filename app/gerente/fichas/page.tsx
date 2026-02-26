@@ -60,13 +60,26 @@ export default function GerenteFichas() {
 
     const atribuirSelecionados = async () => {
         if (!ligadorParaAtribuir || selecionados.length === 0) return
+        setLoading(true)
+
+        let erros = 0
         for (const id of selecionados) {
-            await supabase.from('clientes').update({ atribuido_a: ligadorParaAtribuir }).eq('id', id)
+            const { error } = await supabase.from('clientes').update({ atribuido_a: ligadorParaAtribuir }).eq('id', id)
+            if (error) {
+                console.error(`Erro ao atribuir ${id}:`, error)
+                erros++
+            }
         }
+
+        if (erros > 0) {
+            alert(`Atenção: ${erros} fichas não puderam ser atribuídas. Verifique se o ligador existe e se a Foreign Key está correta.`)
+        } else {
+            alert(`${selecionados.length} fichas atribuídas com sucesso!`)
+        }
+
         setSelecionados([])
         setLigadorParaAtribuir('')
         carregarDados()
-        alert(`${selecionados.length} fichas atribuídas com sucesso!`)
     }
 
     const getLigadorNome = (id: string | null) => {
