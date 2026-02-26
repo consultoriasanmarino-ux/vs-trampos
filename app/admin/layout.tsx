@@ -1,9 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import {
     LayoutDashboard,
     Landmark,
@@ -13,6 +12,7 @@ import {
     UserCog,
     ChevronDown,
     Sparkles,
+    Zap,
 } from 'lucide-react'
 import { supabase, Banco } from '@/lib/supabase'
 import { BankThemeProvider, useBankTheme } from '@/lib/bank-theme'
@@ -31,6 +31,7 @@ function AdminContent({ children }: { children: React.ReactNode }) {
     const { theme, selectedBankId, selectedBankName, setSelectedBank } = useBankTheme()
     const [bancos, setBancos] = useState<Banco[]>([])
     const [selectorOpen, setSelectorOpen] = useState(false)
+    const dropdownRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
         const carregarBancos = async () => {
@@ -39,6 +40,19 @@ function AdminContent({ children }: { children: React.ReactNode }) {
         }
         carregarBancos()
     }, [])
+
+    // Fechar dropdown ao clicar fora
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+                setSelectorOpen(false)
+            }
+        }
+        if (selectorOpen) {
+            document.addEventListener('mousedown', handleClickOutside)
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [selectorOpen])
 
     const handleLogout = async () => {
         await fetch('/api/auth/logout', { method: 'POST' })
@@ -54,10 +68,7 @@ function AdminContent({ children }: { children: React.ReactNode }) {
         <div className="flex min-h-screen bg-[#030303] relative overflow-hidden">
             {/* ===== ANIMATED BACKGROUND ===== */}
             <div className="fixed inset-0 pointer-events-none z-0">
-                {/* Grid pattern */}
                 <div className="absolute inset-0 bg-grid opacity-50 animate-grid-move" />
-
-                {/* Dynamic glow orbs */}
                 <div
                     className="orb w-[500px] h-[500px] -top-48 -left-48 opacity-20"
                     style={{ background: `rgba(${theme.primaryRGB}, 0.3)` }}
@@ -70,8 +81,6 @@ function AdminContent({ children }: { children: React.ReactNode }) {
                     className="orb w-[300px] h-[300px] bottom-0 left-1/3 opacity-10 animate-float-slow"
                     style={{ background: `rgba(${theme.primaryRGB}, 0.25)` }}
                 />
-
-                {/* Floating particles */}
                 {[...Array(6)].map((_, i) => (
                     <div
                         key={i}
@@ -91,25 +100,26 @@ function AdminContent({ children }: { children: React.ReactNode }) {
 
             {/* ===== SIDEBAR ===== */}
             <aside className="w-[260px] glass-strong fixed h-full z-40 flex flex-col animate-slide-in-left">
-                {/* Logo */}
                 <div className="p-5 pb-3">
                     <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-xl overflow-hidden shadow-lg relative">
-                            <Image src="/logo.png" alt="VS Trampos" fill className="object-cover" />
+                        <div
+                            className="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg transition-all duration-500"
+                            style={{ background: `linear-gradient(135deg, rgba(${theme.primaryRGB}, 0.4), rgba(${theme.primaryRGB}, 0.15))` }}
+                        >
+                            <Zap className="w-5 h-5 text-white" />
                         </div>
                         <div>
                             <h1 className="text-sm font-bold text-white tracking-tight">VS Trampos</h1>
-                            <p className="text-[9px] font-semibold uppercase tracking-[0.2em]" style={{ color: theme.primary }}>
+                            <p className="text-[9px] font-semibold uppercase tracking-[0.2em] transition-colors duration-500" style={{ color: theme.primary }}>
                                 {selectedBankName || 'CRM System'}
                             </p>
                         </div>
                     </div>
                 </div>
 
-                {/* Navigation */}
                 <nav className="flex-1 px-3 mt-3 space-y-0.5">
                     <p className="px-3 text-[9px] font-bold text-gray-700 uppercase tracking-[0.2em] mb-2">Menu</p>
-                    {navItems.map((item, i) => {
+                    {navItems.map((item) => {
                         const isActive = pathname === item.href || (item.href !== '/admin' && pathname.startsWith(item.href))
                         const Icon = item.icon
                         return (
@@ -136,7 +146,6 @@ function AdminContent({ children }: { children: React.ReactNode }) {
                     })}
                 </nav>
 
-                {/* Logout */}
                 <div className="p-3 border-t border-white/[0.04]">
                     <button
                         onClick={handleLogout}
@@ -151,14 +160,14 @@ function AdminContent({ children }: { children: React.ReactNode }) {
             {/* ===== MAIN CONTENT ===== */}
             <main className="flex-1 ml-[260px] min-h-screen relative z-10">
                 {/* ===== TOP BAR WITH BANK SELECTOR ===== */}
-                <header className="sticky top-0 z-30 glass-strong px-6 py-3">
+                <header className="sticky top-0 z-50 glass-strong px-6 py-3">
                     <div className="flex items-center justify-between">
                         {/* Bank Selector */}
-                        <div className="relative">
+                        <div className="relative" ref={dropdownRef}>
                             <button
                                 onClick={() => setSelectorOpen(!selectorOpen)}
                                 className="bank-selector-glow flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300 hover:bg-white/[0.03]"
-                                style={{ '--accent': theme.primaryRGB } as any}
+                                style={{ '--accent': theme.primaryRGB } as React.CSSProperties}
                             >
                                 <div
                                     className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-500"
@@ -178,7 +187,7 @@ function AdminContent({ children }: { children: React.ReactNode }) {
 
                             {/* Dropdown */}
                             {selectorOpen && (
-                                <div className="absolute top-full left-0 mt-2 w-64 glass-strong rounded-2xl p-2 animate-fade-in-up shadow-2xl">
+                                <div className="absolute top-full left-0 mt-2 w-72 glass-strong rounded-2xl p-2 animate-fade-in-up shadow-2xl z-[100]">
                                     <p className="px-3 py-2 text-[9px] text-gray-600 font-bold uppercase tracking-wider">
                                         Escolha o banco para trabalhar
                                     </p>
@@ -187,11 +196,11 @@ function AdminContent({ children }: { children: React.ReactNode }) {
                                             key={banco.id}
                                             onClick={() => handleSelectBank(banco)}
                                             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-200 ${selectedBankId === banco.id
-                                                    ? 'bg-white/[0.06] text-white'
+                                                    ? 'bg-white/[0.08] text-white'
                                                     : 'text-gray-400 hover:text-white hover:bg-white/[0.04]'
                                                 }`}
                                         >
-                                            <div className="w-2 h-2 rounded-full" style={{
+                                            <div className="w-2.5 h-2.5 rounded-full transition-all duration-300" style={{
                                                 background: selectedBankId === banco.id ? theme.primary : 'rgba(255,255,255,0.1)'
                                             }} />
                                             <span className="text-sm font-medium">{banco.nome}</span>
@@ -225,13 +234,16 @@ function AdminContent({ children }: { children: React.ReactNode }) {
 
                 {/* ===== BANK SELECTION OVERLAY ===== */}
                 {!selectedBankId && (
-                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in" style={{ top: '56px' }}>
+                    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-md animate-fade-in ml-[260px]">
                         <div className="glass-strong rounded-3xl p-8 max-w-md w-full mx-4 animate-fade-in-up text-center">
-                            <div className="w-16 h-16 rounded-2xl overflow-hidden mx-auto mb-5 shadow-lg">
-                                <Image src="/logo.png" alt="VS Trampos" width={64} height={64} className="object-cover" />
+                            <div
+                                className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-lg"
+                                style={{ background: `linear-gradient(135deg, rgba(${theme.primaryRGB}, 0.3), rgba(${theme.primaryRGB}, 0.1))` }}
+                            >
+                                <Zap className="w-8 h-8 text-white" />
                             </div>
                             <h2 className="text-xl font-bold text-white mb-2">Bem-vindo ao VS Trampos</h2>
-                            <p className="text-sm text-gray-500 mb-6">Selecione um banco no topo da tela para começar a trabalhar.</p>
+                            <p className="text-sm text-gray-500 mb-6">Selecione um banco para começar a trabalhar.</p>
                             <div className="space-y-2">
                                 {bancos.map((banco) => (
                                     <button
@@ -239,7 +251,7 @@ function AdminContent({ children }: { children: React.ReactNode }) {
                                         onClick={() => handleSelectBank(banco)}
                                         className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-gray-300 hover:text-white hover:bg-white/[0.06] hover:border-white/[0.1] transition-all duration-300 group"
                                     >
-                                        <Landmark size={16} className="text-gray-600 group-hover:text-white" />
+                                        <Landmark size={16} className="text-gray-600 group-hover:text-white transition-colors" />
                                         <span className="text-sm font-medium">{banco.nome}</span>
                                     </button>
                                 ))}
@@ -261,11 +273,6 @@ function AdminContent({ children }: { children: React.ReactNode }) {
                     {children}
                 </div>
             </main>
-
-            {/* Click outside to close dropdown */}
-            {selectorOpen && (
-                <div className="fixed inset-0 z-20" onClick={() => setSelectorOpen(false)} />
-            )}
         </div>
     )
 }

@@ -2,8 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
-import { Lock, User, Eye, EyeOff } from 'lucide-react'
+import { Lock, User, Eye, EyeOff, Zap } from 'lucide-react'
 
 export default function LoginPage() {
     const [username, setUsername] = useState('')
@@ -50,7 +49,6 @@ export default function LoginPage() {
             <div className="orb w-[500px] h-[500px] -top-32 -right-32 opacity-20" style={{ background: 'rgba(124, 58, 237, 0.3)' }} />
             <div className="orb w-[400px] h-[400px] -bottom-32 -left-32 opacity-15 animate-pulse-glow" style={{ background: 'rgba(124, 58, 237, 0.2)' }} />
 
-            {/* Floating particles */}
             {[...Array(5)].map((_, i) => (
                 <div
                     key={i}
@@ -70,8 +68,8 @@ export default function LoginPage() {
             <div className="w-full max-w-md relative z-10 animate-fade-in-up">
                 {/* Logo */}
                 <div className="text-center mb-8">
-                    <div className="w-24 h-24 rounded-2xl overflow-hidden mx-auto mb-4 shadow-2xl shadow-violet-600/20 animate-pulse-glow">
-                        <Image src="/logo.png" alt="VS Trampos" width={96} height={96} className="object-cover" />
+                    <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-2xl shadow-violet-600/20 animate-pulse-glow bg-gradient-to-br from-violet-600/30 to-purple-700/20 border border-violet-500/20">
+                        <Zap className="w-10 h-10 text-violet-400" />
                     </div>
                     <h1 className="text-2xl font-bold text-white tracking-tight">VS Trampos</h1>
                     <p className="text-gray-600 text-xs mt-1 uppercase tracking-[0.2em] font-medium">Sistema de Gestão de Leads</p>
