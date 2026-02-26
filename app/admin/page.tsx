@@ -13,6 +13,9 @@ import {
     RefreshCw,
     TrendingUp,
     ArrowUpRight,
+    Zap,
+    Cpu,
+    Globe,
 } from 'lucide-react'
 import { supabase, Banco } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
@@ -33,6 +36,8 @@ export default function AdminDashboard() {
     const [totalFixo, setTotalFixo] = useState(0)
     const [totalPendentes, setTotalPendentes] = useState(0)
     const [totalBancos, setTotalBancos] = useState(0)
+    const [enriching, setEnriching] = useState(false)
+    const [enrichProgress, setEnrichProgress] = useState({ current: 0, total: 0 })
 
     useEffect(() => {
         carregarBancos()
@@ -111,32 +116,71 @@ export default function AdminDashboard() {
         }
     }
 
-    const handleUploadEnriquecer = async (e: React.FormEvent) => {
-        e.preventDefault()
-        if (!fileEnriquecer) return
+    const handleAutoConsultar = async () => {
+        // Busca todos os leads sem nome (apenas CPF)
+        let query = supabase.from('clientes').select('*').or('nome.is.null,nome.eq.""')
+        if (selectedBankId) query = query.eq('banco_principal_id', selectedBankId)
 
-        setLoadingEnriquecer(true)
-        setStatusEnriquecer(null)
+        const { data: leadsParaEnriquecer } = await query
 
-        const formData = new FormData()
-        formData.append('file', fileEnriquecer)
-        if (selectedBankId) formData.append('banco_id', selectedBankId)
+        if (!leadsParaEnriquecer || leadsParaEnriquecer.length === 0) {
+            alert('Não há fichas pendentes de consulta (todas já possuem nome).')
+            return
+        }
+
+        if (!confirm(`Deseja consultar os dados de ${leadsParaEnriquecer.length} ficha(s) automaticamente?`)) return
+
+        setEnriching(true)
+        setEnrichProgress({ current: 0, total: leadsParaEnriquecer.length })
+
+        let apiUrl = localStorage.getItem('api_consulta_url') || 'https://completa.workbuscas.com/api?token=TOKEN&modulo=MODULO&consulta=DOCUMENTO'
+        let apiToken = localStorage.getItem('api_consulta_token') || 'doavTXJphHLkpayfbdNdJyGp'
 
         try {
-            const res = await fetch('/api/enriquecer', { method: 'POST', body: formData })
-            const data = await res.json()
-
-            if (res.ok) {
-                setStatusEnriquecer({ type: 'success', message: data.message })
-                setFileEnriquecer(null)
-            } else {
-                setStatusEnriquecer({ type: 'error', message: data.error })
+            const { data: dbConfigs } = await supabase.from('configuracoes').select('*')
+            if (dbConfigs) {
+                const urlObj = dbConfigs.find(c => c.key === 'api_consulta_url')
+                const tokenObj = dbConfigs.find(c => c.key === 'api_consulta_token')
+                if (urlObj) apiUrl = urlObj.value
+                if (tokenObj) apiToken = tokenObj.value
             }
-        } catch {
-            setStatusEnriquecer({ type: 'error', message: 'Erro de conexão.' })
-        } finally {
-            setLoadingEnriquecer(false)
+        } catch (e) {
+            console.warn('Erro ao ler configs do banco')
         }
+
+        let sucessos = 0
+        for (const lead of leadsParaEnriquecer) {
+            try {
+                const url = apiUrl
+                    .replace('TOKEN', apiToken)
+                    .replace('MODULO', 'completa')
+                    .replace('DOCUMENTO', lead.cpf.replace(/\D/g, ''))
+
+                const response = await fetch(url)
+                const result = await response.json()
+
+                if (result) {
+                    const dados = result.dados || result
+                    const novosDados = {
+                        nome: dados.nome || dados.NOME || lead.nome,
+                        data_nascimento: dados.data_nascimento || dados.NASC || lead.data_nascimento,
+                        renda: dados.renda || dados.RENDA || lead.renda,
+                        score: dados.score || dados.SCORE || lead.score
+                    }
+
+                    await supabase.from('clientes').update(novosDados).eq('id', lead.id)
+                    sucessos++
+                }
+            } catch (err) {
+                console.error(`Erro CPF ${lead.cpf}:`, err)
+            }
+            setEnrichProgress(prev => ({ ...prev, current: prev.current + 1 }))
+            await new Promise(r => setTimeout(r, 300))
+        }
+
+        setEnriching(false)
+        carregarStats()
+        alert(`Consulta finalizada! ${sucessos} fichas atualizadas com sucesso.`)
     }
 
     return (
@@ -280,63 +324,82 @@ export default function AdminDashboard() {
                     </form>
                 </div>
 
-                {/* Enriquecer Leads */}
-                <div className="glass rounded-2xl p-6 card-hover animate-fade-in-up stagger-3">
+                {/* Auto Consult Section */}
+                <div className={`glass rounded-2xl p-6 card-hover animate-fade-in-up stagger-3 relative overflow-hidden`}>
+                    <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
+                        <Cpu size={100} />
+                    </div>
+
                     <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2.5 rounded-xl bg-emerald-500/10">
-                            <TrendingUp size={20} className="text-emerald-500" />
+                        <div
+                            className="p-2.5 rounded-xl transition-all duration-500"
+                            style={{ background: `rgba(${theme.primaryRGB}, 0.1)` }}
+                        >
+                            <Zap size={20} style={{ color: theme.primary }} />
                         </div>
                         <div>
-                            <h2 className="text-base font-semibold text-white">Enriquecer Leads</h2>
-                            <p className="text-xs text-gray-600">TXT (Leads_completos), CSV ou JSON</p>
+                            <h2 className="text-base font-semibold text-white uppercase tracking-tight italic">Consultar Automático</h2>
+                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+                                Enriquecer leads importados (Apenas CPFs)
+                            </p>
                         </div>
                     </div>
 
-                    <form onSubmit={handleUploadEnriquecer} className="space-y-4">
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Arquivo CSV ou JSON</label>
-                            <div className="border border-dashed border-emerald-500/15 rounded-2xl p-8 text-center transition-all cursor-pointer relative group hover:border-emerald-500/30">
-                                <input
-                                    type="file"
-                                    accept=".csv,.json,.txt"
-                                    onChange={(e) => setFileEnriquecer(e.target.files?.[0] || null)}
-                                    className="absolute inset-0 opacity-0 cursor-pointer"
-                                />
-                                <Database
-                                    className="mx-auto mb-3 transition-all duration-300 group-hover:scale-110"
-                                    size={36}
-                                    style={{ color: fileEnriquecer ? '#10b981' : 'rgb(50,50,50)' }}
-                                />
-                                <p className="text-xs text-gray-500">
-                                    {fileEnriquecer ? (
-                                        <span className="text-emerald-400 font-semibold">{fileEnriquecer.name}</span>
-                                    ) : (
-                                        'Clique ou arraste o archivo'
-                                    )}
-                                </p>
-                            </div>
+                    <div className="space-y-6">
+                        <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 text-center">
+                            <Database className="mx-auto mb-4 text-gray-700" size={48} />
+                            <p className="text-sm text-gray-400 mb-2">
+                                Identificamos automaticamente os leads que possuem apenas o CPF e buscamos os dados na API configurada.
+                            </p>
+                            <p className="text-[10px] text-gray-600 font-black uppercase tracking-[0.2em]">
+                                Nome • Idade • Renda • Score
+                            </p>
                         </div>
 
-                        <div className="glass rounded-xl p-3">
-                            <p className="text-[9px] text-gray-600 uppercase tracking-wider font-bold mb-2">Formatos Aceitos</p>
-                            <div className="flex flex-wrap gap-1.5">
-                                {['Leads_completos.txt', '.csv', '.json'].map(col => (
-                                    <span key={col} className="px-2 py-0.5 bg-white/[0.04] border border-white/[0.06] rounded-md text-[10px] text-gray-400 font-mono">{col}</span>
-                                ))}
+                        {enriching && (
+                            <div className="space-y-3 px-1">
+                                <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-widest">
+                                    <span className="text-gray-500">Progresso da Consulta</span>
+                                    <span style={{ color: theme.primary }}>{enrichProgress.current} / {enrichProgress.total}</span>
+                                </div>
+                                <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden border border-white/5">
+                                    <div
+                                        className="h-full transition-all duration-500 animate-pulse"
+                                        style={{
+                                            width: `${(enrichProgress.current / enrichProgress.total) * 100}%`,
+                                            background: `linear-gradient(to right, ${theme.primary}, ${theme.primary}88)`
+                                        }}
+                                    />
+                                </div>
                             </div>
-                            <p className="text-[9px] text-gray-700 mt-2">Campos: NOME, CPF, NASC, RENDA, SCORE, CELULARES</p>
-                        </div>
-
-                        {statusEnriquecer && <StatusAlert type={statusEnriquecer.type} message={statusEnriquecer.message} theme={theme} />}
+                        )}
 
                         <button
-                            type="submit"
-                            disabled={loadingEnriquecer || !fileEnriquecer}
-                            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-emerald-600/20 active:scale-[0.98] transition-all disabled:opacity-30 disabled:cursor-not-allowed text-sm"
+                            onClick={handleAutoConsultar}
+                            disabled={enriching || totalClientes === 0}
+                            className="w-full flex items-center justify-center gap-3 font-black uppercase tracking-[0.15em] text-xs py-5 rounded-[1.2rem] shadow-2xl transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed group relative overflow-hidden"
+                            style={{
+                                background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary}88)`,
+                                color: 'white',
+                                boxShadow: `0 10px 40px rgba(${theme.primaryRGB}, 0.2)`
+                            }}
                         >
-                            {loadingEnriquecer ? 'Processando...' : 'Enriquecer Leads'}
+                            {enriching ? (
+                                <>
+                                    <RefreshCw className="animate-spin" size={18} />
+                                    <span>Consultando...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Zap size={18} className="group-hover:scale-125 transition-transform" />
+                                    <span>Iniciar Consulta Automática</span>
+                                </>
+                            )}
+
+                            {/* Shimmer effect */}
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer pointer-events-none" />
                         </button>
-                    </form>
+                    </div>
                 </div>
             </div>
         </div>
