@@ -199,16 +199,16 @@ export default function LeadsPage() {
                     <table className="w-full">
                         <thead>
                             <tr className="border-b border-white/[0.04]">
-                                {['CPF', 'Nome', 'Banco', 'BIN', 'Validade', 'Telefone', 'Status', 'Ações'].map(h => (
+                                {['CPF', 'Nome', 'Banco', 'BIN', 'Validade', 'Telefone', 'Status', 'Check', 'Ações'].map(h => (
                                     <th key={h} className="text-left px-5 py-3.5 text-[10px] font-bold text-gray-600 uppercase tracking-wider">{h}</th>
                                 ))}
                             </tr>
                         </thead>
                         <tbody>
                             {loading ? (
-                                <tr><td colSpan={8} className="text-center py-12 text-gray-600 text-sm">Carregando...</td></tr>
+                                <tr><td colSpan={9} className="text-center py-12 text-gray-600 text-sm">Carregando...</td></tr>
                             ) : clientesFiltrados.length === 0 ? (
-                                <tr><td colSpan={8} className="text-center py-12 text-gray-600 text-sm">Nenhum lead encontrado.</td></tr>
+                                <tr><td colSpan={9} className="text-center py-12 text-gray-600 text-sm">Nenhum lead encontrado.</td></tr>
                             ) : (
                                 clientesFiltrados.map((c, i) => (
                                     <tr
@@ -243,6 +243,17 @@ export default function LeadsPage() {
                                                 {statusIcon(c.status_whatsapp, c.telefone)}
                                                 <span className="text-xs text-gray-400">{statusLabel(c.status_whatsapp, c.telefone)}</span>
                                             </div>
+                                        </td>
+                                        <td className="px-5 py-3.5">
+                                            {c.wpp_checked ? (
+                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-500 text-[10px] font-black border border-emerald-500/20">
+                                                    <Shield size={10} /> CHECK
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white/5 text-gray-600 text-[10px] font-black border border-white/5">
+                                                    <RefreshCw size={10} /> PENDENTE
+                                                </span>
+                                            )}
                                         </td>
                                         <td className="px-5 py-3.5">
                                             <button
