@@ -71,10 +71,14 @@ export async function POST(request: NextRequest) {
 
                 if (apiStatus !== 200) {
                     const reason = result.reason || result.statusMsg || result.StatusMsg || result.message || JSON.stringify(result).substring(0, 100)
+
+                    // Excluir lead se der erro na consulta (CPF não encontrado ou erro definitivo)
+                    await supabase.from('clientes').delete().eq('id', clienteId)
+
                     resultados.push({
                         cpf: cpfLimpo,
                         sucesso: false,
-                        erro: `API status ${apiStatus}: ${reason}`
+                        erro: `API status ${apiStatus}: ${reason} (Lead excluído)`
                     })
                     continue
                 }
@@ -148,11 +152,14 @@ export async function POST(request: NextRequest) {
 
                 console.log(`[API] CPF ${cpfLimpo} => Dados extraídos:`, JSON.stringify(novosDados))
 
-                if (Object.keys(novosDados).length === 0) {
+                if (Object.keys(novosDados).length === 0 || !telefone) {
+                    // Excluir se não tem dados úteis ou falta o telefone (conforme solicitado pelo user)
+                    await supabase.from('clientes').delete().eq('id', clienteId)
+
                     resultados.push({
                         cpf: cpfLimpo,
                         sucesso: false,
-                        erro: `API retornou status 200 mas nenhum campo útil. Keys na resposta: ${Object.keys(result).join(', ')}`
+                        erro: `API retornou status 200 mas sem telefone disponível. (Lead excluído)`
                     })
                     continue
                 }
@@ -181,12 +188,14 @@ export async function POST(request: NextRequest) {
         }
 
         const sucessos = resultados.filter(r => r.sucesso).length
-        const erros = resultados.filter(r => !r.sucesso)
+        const excluidos = resultados.filter(r => r.erro && r.erro.includes('Lead excluído')).length
+        const erros = resultados.filter(r => !r.sucesso && !r.erro?.includes('Lead excluído'))
 
         return NextResponse.json({
             success: true,
             total: cpfs.length,
             sucessos,
+            excluidos,
             erros: erros.length,
             detalhes: resultados
         })

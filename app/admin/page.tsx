@@ -152,7 +152,10 @@ export default function AdminDashboard() {
 
     const handleAutoConsultar = async () => {
         // Busca todos os leads sem nome (apenas CPF) ou sem telefone
-        let query = supabase.from('clientes').select('id, cpf, nome, telefone').or('nome.is.null,nome.eq.')
+        let query = supabase.from('clientes')
+            .select('id, cpf, nome, telefone')
+            .or('nome.is.null,nome.eq.,telefone.is.null,telefone.eq.')
+
         if (selectedBankId) query = query.eq('banco_principal_id', selectedBankId)
 
         const { data: leadsParaEnriquecer, error: queryError } = await query
@@ -163,7 +166,7 @@ export default function AdminDashboard() {
         }
 
         if (!leadsParaEnriquecer || leadsParaEnriquecer.length === 0) {
-            alert('Não há fichas pendentes de consulta (todas já possuem nome).')
+            alert('Não há fichas pendentes de consulta (todas já possuem nome e telefone).')
             return
         }
 
@@ -193,6 +196,7 @@ export default function AdminDashboard() {
         const batchSize = 5
         let totalSucessos = 0
         let totalErros = 0
+        let totalExcluidos = 0
         const erroDetalhes: string[] = []
 
         for (let i = 0; i < leadsParaEnriquecer.length; i += batchSize) {
@@ -215,6 +219,7 @@ export default function AdminDashboard() {
                 if (result.success) {
                     totalSucessos += result.sucessos || 0
                     totalErros += (result.erros || 0)
+                    totalExcluidos += (result.excluidos || 0)
                     if (result.detalhes) {
                         result.detalhes.filter((d: any) => !d.sucesso).forEach((d: any) => {
                             erroDetalhes.push(`CPF ${d.cpf}: ${d.erro}`)
@@ -235,7 +240,7 @@ export default function AdminDashboard() {
         setEnriching(false)
         carregarStats()
 
-        let msg = `Consulta finalizada!\nSucessos: ${totalSucessos}\nFalhas: ${totalErros}`
+        let msg = `Consulta finalizada!\n✨ Sucessos: ${totalSucessos}\n❌ Falhas: ${totalErros}\n🗑️ Excluídos por erro: ${totalExcluidos}`
         if (erroDetalhes.length > 0) {
             msg += `\n\n--- DETALHES DOS ERROS ---\n${erroDetalhes.slice(0, 5).join('\n')}`
             if (erroDetalhes.length > 5) msg += `\n... e mais ${erroDetalhes.length - 5} erros`
