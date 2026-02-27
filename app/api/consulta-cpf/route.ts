@@ -26,50 +26,41 @@ export async function POST(request: NextRequest) {
                     .replace('{MODULO}', modulo)
                     .replace('{PARAMETRO}', cpfLimpo)
 
-                console.log(`[API] Consultando CPF ${cpfLimpo}...`)
+                let result: any = null
+                const jaTinhaTelefone = !!cpfItem.telefone
 
-                const response = await fetch(finalUrl, {
-                    method: 'GET',
-                    cache: 'no-store',
-                    headers: {
-                        'Accept': 'application/json',
-                        'User-Agent': 'Mozilla/5.0'
+                // SÓ CONSULTA ENRIQUECIMENTO SE NÃO TIVER TELEFONE OU NOME
+                if (!cpfItem.nome || !jaTinhaTelefone) {
+                    console.log(`[API] Enriquecendo CPF ${cpfLimpo}...`)
+                    const response = await fetch(finalUrl, {
+                        method: 'GET',
+                        cache: 'no-store',
+                        headers: {
+                            'Accept': 'application/json',
+                            'User-Agent': 'Mozilla/5.0'
+                        }
+                    })
+
+                    const rawText = await response.text()
+
+                    if (response.ok) {
+                        try {
+                            result = JSON.parse(rawText)
+                        } catch (e) {
+                            console.error('Erro parse JSON enriquecimento')
+                        }
                     }
-                })
-
-                // Pega o texto bruto primeiro para evitar crash no .json()
-                const rawText = await response.text()
-
-                // Se o HTTP retornou erro
-                if (!response.ok) {
-                    resultados.push({
-                        cpf: cpfLimpo,
-                        sucesso: false,
-                        erro: `HTTP ${response.status}: ${rawText.substring(0, 150)}`
-                    })
-                    continue
+                } else {
+                    console.log(`[API] CPF ${cpfLimpo} já tem dados, pulando enriquecimento.`)
                 }
 
-                // Tenta parsear o JSON
-                let result: any
-                try {
-                    result = JSON.parse(rawText)
-                } catch (parseError) {
-                    resultados.push({
-                        cpf: cpfLimpo,
-                        sucesso: false,
-                        erro: `Resposta não é JSON válido`
-                    })
-                    continue
-                }
+                // Aceitar qualquer variação de status 200 ou se já tivermos dados
+                const apiStatus = result ? Number(result.status || result.Status || 0) : 200
 
-                // Aceitar qualquer variação de status 200
-                const apiStatus = Number(result.status || result.Status || 0)
+                if (apiStatus !== 200 && !jaTinhaTelefone) {
+                    const reason = result?.reason || result?.statusMsg || result?.StatusMsg || result?.message || 'Erro na API'
 
-                if (apiStatus !== 200) {
-                    const reason = result.reason || result.statusMsg || result.StatusMsg || result.message || 'Erro na API'
-
-                    // Excluir lead se der erro na consulta
+                    // Excluir lead se der erro na consulta e NÃO tivermos nada dele ainda
                     await supabase.from('clientes').delete().eq('id', clienteId)
 
                     resultados.push({
@@ -81,12 +72,12 @@ export async function POST(request: NextRequest) {
                 }
 
                 // === EXTRAIR DADOS ===
-                const basicos = result.DadosBasicos || result.dadosBasicos || result.dados_basicos || {}
-                const economicos = result.DadosEconomicos || result.dadosEconomicos || result.dados_economicos || {}
-                const telefonesRaw = result.telefones || result.Telefones || result.phones || []
+                const basicos = result?.DadosBasicos || result?.dadosBasicos || result?.dados_basicos || {}
+                const economicos = result?.DadosEconomicos || result?.dadosEconomicos || result?.dados_economicos || {}
+                const telefonesRaw = result?.telefones || result?.Telefones || result?.phones || []
 
-                // Nome
-                const nome = basicos.nome || basicos.Nome || basicos.name || null
+                // Se não veio dado novo mas já tinha telefone, mantém o que tinha
+                const nome = basicos.nome || basicos.Nome || basicos.name || cpfItem.nome || null
 
                 // Data de nascimento
                 let rawDataNasc = basicos.dataNascimento || basicos.DataNascimento || basicos.data_nascimento || basicos.nascimento || null
@@ -101,8 +92,12 @@ export async function POST(request: NextRequest) {
 
                 // Telefones - Pega, limpa e expande para lidar com o 9º dígito no Brasil
                 let listaTels: string[] = []
-                if (Array.isArray(telefonesRaw) && telefonesRaw.length > 0) {
-                    const rawNumbers = telefonesRaw.map(t => {
+                const sourceRaw = (Array.isArray(telefonesRaw) && telefonesRaw.length > 0)
+                    ? telefonesRaw
+                    : (cpfItem.telefone ? cpfItem.telefone.split(',') : [])
+
+                if (sourceRaw.length > 0) {
+                    const rawNumbers = sourceRaw.map((t: any) => {
                         const val = t.telefone || t.Telefone || t.phone || t.numero || (typeof t === 'string' ? t : null)
                         return val ? String(val).replace(/\D/g, '') : null
                     }).filter(Boolean) as string[]
@@ -203,22 +198,20 @@ export async function POST(request: NextRequest) {
                 const scoreVal = scoreObj.scoreCSBA || scoreObj.scoreCSB || scoreObj.score || null
 
                 // Montar update
-                const novosDados: Record<string, any> = {}
+                const novosDados: Record<string, any> = {
+                    wpp_checked: true // Sempre marca como verificado após esse processo
+                }
                 if (nome) novosDados.nome = nome
                 if (dataNasc) novosDados.data_nascimento = dataNasc
-                if (rendaNum && !isNaN(rendaNum)) novosDados.renda = String(rendaNum)
-                if (scoreVal) novosDados.score = String(scoreVal)
+                if (rendaNum && !isNaN(rendaNum)) novosDados.renda = rendaNum
+                if (scoreVal) novosDados.score = Number(scoreVal)
                 if (telefoneComStatus) {
                     novosDados.telefone = telefoneComStatus
-                    // Se usamos a API de WhatsApp, marcamos como verificado
-                    if (apiWppToken && apiWppUrl) {
-                        novosDados.wpp_checked = true
-                    }
                 }
 
-                if (Object.keys(novosDados).length === 0 || !telefoneComStatus) {
+                if (!telefoneComStatus && !jaTinhaTelefone && !nome) {
                     await supabase.from('clientes').delete().eq('id', clienteId)
-                    resultados.push({ cpf: cpfLimpo, sucesso: false, erro: `Sem telefone útil. (Excluído)` })
+                    resultados.push({ cpf: cpfLimpo, sucesso: false, erro: `Sem dados úteis. (Excluído)` })
                     continue
                 }
 
