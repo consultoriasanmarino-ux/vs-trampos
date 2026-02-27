@@ -72,11 +72,41 @@ export async function POST(request: NextRequest) {
             }, { status: 400 })
         }
 
-        // Inserção em lotes de 500 para evitar timeout
-        let totalInserido = 0
-        const batch = 500
-        for (let i = 0; i < clientes.length; i += batch) {
-            const chunk = clientes.slice(i, i + batch)
+        // 1. Remover duplicados dentro do próprio arquivo enviado (caso o mesmo log tenha CPF repetido)
+        const uniqueClientesMap = new Map()
+        clientes.forEach(c => {
+            // Se já existe e o novo tem nome/bin, substitui (prioriza dados completos)
+            if (!uniqueClientesMap.has(c.cpf) || c.nome || c.bin_cartao) {
+                uniqueClientesMap.set(c.cpf, c)
+            }
+        })
+        const uniqueClientes = Array.from(uniqueClientesMap.values())
+
+        // 2. Verificar quais CPFs já existem no banco de dados
+        const allCpfs = uniqueClientes.map(c => c.cpf)
+        let existingCpfs = new Set<string>()
+
+        // Faz busca em lotes de 1000 para os CPFs existentes
+        for (let i = 0; i < allCpfs.length; i += 1000) {
+            const batchCpfs = allCpfs.slice(i, i + 1000)
+            const { data: existingData } = await supabase
+                .from('clientes')
+                .select('cpf')
+                .in('cpf', batchCpfs)
+
+            if (existingData) {
+                existingData.forEach(r => existingCpfs.add(r.cpf))
+            }
+        }
+
+        const novos = uniqueClientes.filter(c => !existingCpfs.has(c.cpf))
+        const repetidos = uniqueClientes.filter(c => existingCpfs.has(c.cpf))
+
+        // 3. Executar o Upsert (ele vai inserir os novos e atualizar os antigos com o BIN/Validade)
+        let totalProcessado = 0
+        const batchSize = 500
+        for (let i = 0; i < uniqueClientes.length; i += batchSize) {
+            const chunk = uniqueClientes.slice(i, i + batchSize)
             const { error } = await supabase
                 .from('clientes')
                 .upsert(chunk, { onConflict: 'cpf' })
@@ -84,17 +114,19 @@ export async function POST(request: NextRequest) {
             if (error) {
                 console.error('Erro Supabase:', error)
                 return NextResponse.json({
-                    error: `Erro no banco: ${error.message}. Inseridos até agora: ${totalInserido}`,
+                    error: `Erro no banco: ${error.message}. Processados: ${totalProcessado}`,
                 }, { status: 500 })
             }
-            totalInserido += chunk.length
+            totalProcessado += chunk.length
         }
 
         return NextResponse.json({
             success: true,
-            count: totalInserido,
+            total: uniqueClientes.length,
+            novos: novos.length,
+            atualizados: repetidos.length,
             erros: erros.length,
-            message: `${totalInserido} registros importados com sucesso.${erros.length > 0 ? ` (${erros.length} linhas com erro)` : ''}`,
+            message: `${novos.length} novos registros adicionados. ${repetidos.length} já existiam e foram atualizados com novos dados.${erros.length > 0 ? ` (${erros.length} linhas ignoradas por erro)` : ''}`,
         })
     } catch (err: any) {
         console.error('Erro no import-extracao:', err)
