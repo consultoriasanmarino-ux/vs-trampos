@@ -14,6 +14,7 @@ export default function LeadsPage() {
     const [busca, setBusca] = useState('')
     const [loading, setLoading] = useState(true)
     const [deletingAll, setDeletingAll] = useState(false)
+    const [clearingCheck, setClearingCheck] = useState(false)
     const [confirmDeleteAll, setConfirmDeleteAll] = useState(false)
 
     // Paginação
@@ -88,6 +89,36 @@ export default function LeadsPage() {
         setDeletingAll(false)
     }
 
+    const handleLimparChecks = async () => {
+        if (!confirm('Deseja realmente limpar as marcas de Check para re-conferir tudo?')) return
+        setClearingCheck(true)
+
+        try {
+            // 1. Busca todos os IDs e telefones atuais (filtrando por banco se necessário)
+            let fetchQuery = supabase.from('clientes').select('id, telefone')
+            if (selectedBankId) fetchQuery = fetchQuery.eq('banco_principal_id', selectedBankId)
+
+            const { data } = await fetchQuery
+            if (data && data.length > 0) {
+                // Prepara as atualizações limpando o ícone do telefone e o check
+                for (const item of data) {
+                    const cleanTel = (item.telefone || '').replace(/[✅❌]/g, '').trim()
+                    await supabase.from('clientes')
+                        .update({
+                            wpp_checked: false,
+                            telefone: cleanTel
+                        })
+                        .eq('id', item.id)
+                }
+                alert('Checks resetados com sucesso! O robô agora vai re-conferir todos.')
+                carregarDados(pagina)
+            }
+        } catch (error: any) {
+            alert('Erro ao limpar checks: ' + error.message)
+        }
+        setClearingCheck(false)
+    }
+
     const clientesFiltrados = clientes.filter(c => {
         if (!busca) return true
         const termo = busca.toLowerCase()
@@ -122,15 +153,28 @@ export default function LeadsPage() {
                     <p className="text-gray-600 text-sm mt-1">Visualize e gerencie seus leads importados.</p>
                 </div>
 
-                {clientes.length > 0 && (
-                    <button
-                        onClick={() => setConfirmDeleteAll(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl transition-all text-sm font-semibold border border-red-500/20"
-                    >
-                        <Trash2 size={16} />
-                        Apagar Tudo {selectedBankId ? `(${selectedBankName})` : ''}
-                    </button>
-                )}
+                <div className="flex items-center gap-2">
+                    {clientes.length > 0 && (
+                        <button
+                            onClick={handleLimparChecks}
+                            disabled={clearingCheck}
+                            className="flex items-center gap-2 px-4 py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-500 rounded-xl transition-all text-sm font-semibold border border-purple-500/20 disabled:opacity-50"
+                        >
+                            <RefreshCw size={16} className={clearingCheck ? 'animate-spin' : ''} />
+                            Limpar Checks
+                        </button>
+                    )}
+
+                    {clientes.length > 0 && (
+                        <button
+                            onClick={() => setConfirmDeleteAll(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl transition-all text-sm font-semibold border border-red-500/20"
+                        >
+                            <Trash2 size={16} />
+                            Apagar Tudo {selectedBankId ? `(${selectedBankName})` : ''}
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Modal de Confirmação para Apagar Tudo */}
