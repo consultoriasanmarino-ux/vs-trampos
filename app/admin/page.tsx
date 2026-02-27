@@ -42,6 +42,7 @@ export default function AdminDashboard() {
     const [totalPendentes, setTotalPendentes] = useState(0)
     const [totalIncompletos, setTotalIncompletos] = useState(0)
     const [totalCompletos, setTotalCompletos] = useState(0)
+    const [totalWppPendente, setTotalWppPendente] = useState(0)
     const [totalBancos, setTotalBancos] = useState(0)
     const [enriching, setEnriching] = useState(false)
     const [enrichProgress, setEnrichProgress] = useState({ current: 0, total: 0 })
@@ -73,8 +74,11 @@ export default function AdminDashboard() {
 
     const carregarStats = async () => {
         let queryTotal = supabase.from('clientes').select('*', { count: 'exact', head: true })
-        // Um lead é considerado incompleto se não tem nome/telefone OU se ainda não passou pelo verificador de WhatsApp
-        let queryIncompletos = supabase.from('clientes').select('*', { count: 'exact', head: true }).or('nome.is.null,nome.eq.,telefone.is.null,telefone.eq.,wpp_checked.eq.false')
+        // Métrica clássica: faltam dados básicos (nome ou telefone)
+        let queryIncompletos = supabase.from('clientes').select('*', { count: 'exact', head: true }).or('nome.is.null,nome.eq.,telefone.is.null,telefone.eq.')
+        // Nova métrica: tem dados mas falta o robô do WhatsApp checar
+        let queryPendWpp = supabase.from('clientes').select('*', { count: 'exact', head: true }).not('telefone', 'eq', '').not('telefone', 'is', null).eq('wpp_checked', false)
+
         let queryWa = supabase.from('clientes').select('*', { count: 'exact', head: true }).ilike('telefone', '%✅%')
         let queryFixo = supabase.from('clientes').select('*', { count: 'exact', head: true }).or('telefone.ilike.%☎️%,telefone.ilike.%📞%')
         let queryPend = supabase.from('clientes').select('*', { count: 'exact', head: true }).not('telefone', 'ilike', '%✅%').not('telefone', 'ilike', '%☎️%').not('telefone', 'ilike', '%📞%').not('telefone', 'is', null)
@@ -82,6 +86,7 @@ export default function AdminDashboard() {
         if (selectedBankId) {
             queryTotal = queryTotal.eq('banco_principal_id', selectedBankId)
             queryIncompletos = queryIncompletos.eq('banco_principal_id', selectedBankId)
+            queryPendWpp = queryPendWpp.eq('banco_principal_id', selectedBankId)
             queryWa = queryWa.eq('banco_principal_id', selectedBankId)
             queryFixo = queryFixo.eq('banco_principal_id', selectedBankId)
             queryPend = queryPend.eq('banco_principal_id', selectedBankId)
@@ -89,6 +94,7 @@ export default function AdminDashboard() {
 
         const { count: total } = await queryTotal
         const { count: incompletos } = await queryIncompletos
+        const { count: pendWpp } = await queryPendWpp
         const { count: whatsapp } = await queryWa
         const { count: fixo } = await queryFixo
         const { count: pendentes } = await queryPend
@@ -96,6 +102,7 @@ export default function AdminDashboard() {
         setTotalClientes(total || 0)
         setTotalIncompletos(incompletos || 0)
         setTotalCompletos((total || 0) - (incompletos || 0))
+        setTotalWppPendente(pendWpp || 0)
         setTotalWhatsapp(whatsapp || 0)
         setTotalFixo(fixo || 0)
         setTotalPendentes(pendentes || 0)
@@ -349,10 +356,10 @@ export default function AdminDashboard() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
                 <StatCard icon={<Users size={20} />} label="Total Leads" value={totalClientes} theme={theme} delay="stagger-1" />
-                <StatCard icon={<CheckCircle2 size={20} />} label="Completos" value={totalCompletos} theme={theme} delay="stagger-2" accent="green" />
-                <StatCard icon={<AlertCircle size={20} />} label="Aguardando Consulta" value={totalIncompletos} theme={theme} delay="stagger-3" accent="yellow" />
-                <StatCard icon={<Smartphone size={20} />} label="WhatsApp" value={totalWhatsapp} theme={theme} delay="stagger-4" accent="purple" />
-                <StatCard icon={<Phone size={20} />} label="Fixo / Outros" value={totalFixo} theme={theme} delay="stagger-5" accent="blue" />
+                <StatCard icon={<CheckCircle2 size={20} />} label="Fichas Prontas" value={totalCompletos} theme={theme} delay="stagger-2" accent="green" />
+                <StatCard icon={<AlertCircle size={20} />} label="Aguardando CPF" value={totalIncompletos} theme={theme} delay="stagger-3" accent="yellow" />
+                <StatCard icon={<Smartphone size={20} />} label="Aguardando WPP" value={totalWppPendente} theme={theme} delay="stagger-4" accent="purple" />
+                <StatCard icon={<CheckCircle2 size={20} />} label="WhatsApp ✅" value={totalWhatsapp} theme={theme} delay="stagger-5" accent="emerald" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
