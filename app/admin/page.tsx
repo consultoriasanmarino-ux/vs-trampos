@@ -477,6 +477,7 @@ function StatCard({ icon, label, value, theme, delay, accent }: {
 }) {
     const colors: Record<string, { bg: string; text: string }> = {
         green: { bg: 'rgba(34, 197, 94, 0.1)', text: '#22c55e' },
+        emerald: { bg: 'rgba(16, 185, 129, 0.1)', text: '#10b981' },
         yellow: { bg: 'rgba(234, 179, 8, 0.1)', text: '#eab308' },
         purple: { bg: 'rgba(168, 85, 247, 0.1)', text: '#a855f7' },
         blue: { bg: 'rgba(59, 130, 246, 0.1)', text: '#3b82f6' },
