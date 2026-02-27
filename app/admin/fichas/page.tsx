@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
     Users, Search, Smartphone, Phone, AlertTriangle,
@@ -12,7 +12,7 @@ import {
 import { supabase, Cliente, Banco } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
 
-export default function FichasAdminPage() {
+function FichasAdminContent() {
     const { theme, selectedBankId, selectedBankName } = useBankTheme()
     const searchParams = useSearchParams()
     const [leads, setLeads] = useState<any[]>([])
@@ -830,5 +830,20 @@ export default function FichasAdminPage() {
                 }
             `}</style>
         </div >
+    )
+}
+
+export default function FichasAdminPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-[#030303] flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-violet-500/20 border-t-violet-500 rounded-full animate-spin" />
+                    <p className="text-gray-500 text-sm font-bold uppercase tracking-widest">Carregando Fichas...</p>
+                </div>
+            </div>
+        }>
+            <FichasAdminContent />
+        </Suspense>
     )
 }
