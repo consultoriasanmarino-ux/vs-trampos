@@ -7,23 +7,99 @@ import {
     CheckCircle2,
     AlertCircle,
     Database,
-    Users,
-    Smartphone,
-    Phone,
-    RefreshCw,
-    TrendingUp,
-    ArrowUpRight,
-    Zap,
-    Cpu,
-    Globe,
-    Trash2,
-    CreditCard,
-    XCircle
-} from 'lucide-react'
+import { Users, Search, Smartphone, Phone, AlertTriangle, Database, Zap, Cpu, Key, KeyRound, MessageSquare, XCircle, Trash2, RefreshCw } from 'lucide-react'
 import { supabase, Banco } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
 
 export default function AdminDashboard() {
+    const handleCheckWhatsapp = async () => {
+        try {
+            if (!selectedBankId) {
+                alert('Selecione um banco primeiro.')
+                return
+            }
+
+            addLog('📱 Iniciando Verificação de WhatsApp...')
+            shouldStopEnrich.current = false
+            setLogs([])
+
+            // Busca leads que têm telefone mas NÃO foram checados no WhatsApp
+            let query = supabase.from('clientes')
+                .select('id, cpf, nome, telefone')
+                .eq('wpp_checked', false)
+                .not('telefone', 'is', null)
+                .neq('telefone', '')
+                .limit(2000)
+
+            if (selectedBankId) query = query.eq('banco_principal_id', selectedBankId)
+
+            const { data: leadsParaCheck, error: queryError } = await query
+
+            if (queryError) {
+                alert('Erro ao buscar leads: ' + queryError.message)
+                return
+            }
+
+            if (!leadsParaCheck || leadsParaCheck.length === 0) {
+                alert('Não há fichas prontas para verificação de WhatsApp (todas já checadas ou sem telefone).')
+                return
+            }
+
+            if (!confirm(`Foram encontrados ${leadsParaCheck.length} registro(s) prontos para Check de WhatsApp. Iniciar agora?`)) return
+
+            setEnriching(true)
+            setEnrichProgress({ current: 0, total: leadsParaCheck.length })
+
+            const batchSize = 10
+            let totalSucessos = 0
+            let totalErros = 0
+
+            for (let i = 0; i < leadsParaCheck.length; i += batchSize) {
+                if (shouldStopEnrich.current) {
+                    addLog('🛑 Verificação interrompida.')
+                    break
+                }
+                const batch = leadsParaCheck.slice(i, i + batchSize)
+
+                try {
+                    const res = await fetch('/api/consulta-cpf', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            leads: batch,
+                            whatsappOnly: true // FLAG PARA SÓ FAZER WHATSAPP
+                        })
+                    })
+
+                    const result = await res.json()
+
+                    if (result.success) {
+                        totalSucessos += batch.length
+                        if (result.detalhes) {
+                            result.detalhes.forEach((d: any) => {
+                                addLog(`📱 CPF ${d.cpf}: Verificação concluída.`)
+                            })
+                        }
+                    } else {
+                        addLog(`⚠️ Erro no lote: ${result.error}`)
+                        totalErros += batch.length
+                    }
+                } catch (err: any) {
+                    addLog(`🚨 Erro de rede: ${err.message}`)
+                    totalErros += batch.length
+                }
+
+                setEnrichProgress(prev => ({ ...prev, current: Math.min(prev.total, i + batchSize) }))
+            }
+
+            setEnriching(false)
+            alert(`Verificação finalizada!\n✅ Sucessos: ${totalSucessos}\n❌ Falhas: ${totalErros}`)
+        } catch (err) {
+            console.error('Erro total:', err)
+            setEnriching(false)
+        }
+    }
+
     const { theme, selectedBankId, selectedBankName } = useBankTheme()
 
     const [bancos, setBancos] = useState<Banco[]>([])
@@ -457,104 +533,74 @@ export default function AdminDashboard() {
                     </form>
                 </div>
 
-                <div className={`glass rounded-2xl p-6 card-hover animate-fade-in-up stagger-3 relative overflow-hidden`}>
-                    <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
-                        <Cpu size={100} />
+                <div className="glass rounded-3xl p-8 border border-white/5 relative overflow-hidden group/card min-h-[400px] flex flex-col justify-between">
+                    <div className="absolute top-0 right-0 p-8 opacity-5 group-hover/card:opacity-10 transition-opacity">
+                        <Database size={120} />
                     </div>
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2.5 rounded-xl transition-all duration-500" style={{ background: `rgba(${theme.primaryRGB}, 0.1)` }}>
-                            <Zap size={20} style={{ color: theme.primary }} />
-                        </div>
-                        <div>
-                            <h2 className="text-base font-semibold text-white uppercase tracking-tight italic">Consultar Automático</h2>
-                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Enriquecer leads importados (Apenas CPFs)</p>
-                        </div>
-                    </div>
-                    <div className="space-y-6">
-                        <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 text-center">
-                            <Database className="mx-auto mb-4 text-gray-700" size={48} />
-                            <p className="text-sm text-gray-400 mb-2">Identificamos automaticamente os leads que possuem apenas o CPF e buscamos os dados na API configurada.</p>
-                            <p className="text-[10px] text-gray-600 font-black uppercase tracking-[0.2em]">Nome • Idade • Renda • Score</p>
-                        </div>
-                        {enriching && (
-                            <div className="space-y-3 px-1">
-                                <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-widest">
-                                    <span className="text-gray-500">Progresso da Operação</span>
-                                    <span style={{ color: theme.primary }}>{enrichProgress.current} / {enrichProgress.total}</span>
-                                </div>
-                                <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
-                                    <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${(enrichProgress.current / enrichProgress.total) * 100}%` }} />
-                                </div>
+
+                    <div>
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="w-10 h-10 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-500">
+                                <Zap size={20} />
                             </div>
-                        )}
-                        <button
-                            onClick={(e) => {
-                                if (enriching) {
-                                    e.preventDefault()
-                                    e.stopPropagation()
-                                    shouldStopEnrich.current = true
-                                    alert('Parando na próxima oportunidade...')
-                                } else {
-                                    handleAutoConsultar()
-                                }
-                            }}
-                            disabled={(enriching && shouldStopEnrich.current) || totalClientes === 0}
-                            className={`w-full flex items-center justify-center gap-3 font-black uppercase tracking-[0.15em] text-xs py-5 rounded-[1.2rem] shadow-2xl transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed group relative overflow-hidden ${enriching ? 'bg-red-600 animate-pulse' : ''}`}
-                            style={{
-                                background: enriching ? '#dc2626' : `linear-gradient(135deg, ${theme.primary}, ${theme.primary}88)`,
-                                color: 'white',
-                                boxShadow: enriching ? '0 10px 40px rgba(220, 38, 38, 0.4)' : `0 10px 40px rgba(${theme.primaryRGB}, 0.2)`
-                            }}
-                        >
-                            {enriching ? (
-                                <>
-                                    <div className="absolute inset-0 bg-black/20 animate-pulse" />
-                                    <XCircle size={18} className="relative z-10" />
-                                    <span className="relative z-10">{shouldStopEnrich.current ? 'INTERROMPENDO...' : 'PARAR CONSULTA'}</span>
-                                </>
+                            <div>
+                                <h3 className="text-sm font-black text-white uppercase tracking-widest">Processamento Automático</h3>
+                                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tight">Enriquecimento e Verificação</p>
+                            </div>
+                        </div>
+
+                        <div className="relative mb-8 aspect-video rounded-2xl bg-black/40 border border-white/5 flex items-center justify-center p-6 text-center group/inner">
+                            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover/inner:opacity-100 transition-opacity" />
+                            {!enriching ? (
+                                <div className="space-y-4">
+                                    <div className="w-16 h-16 rounded-3xl bg-white/5 flex items-center justify-center mx-auto mb-4 border border-white/5">
+                                        <Database size={32} className="text-gray-700" />
+                                    </div>
+                                    <p className="text-[11px] text-gray-400 font-medium leading-relaxed max-w-[240px]">
+                                        Escolha uma operação abaixo para processar seus leads automaticamente.
+                                    </p>
+                                </div>
                             ) : (
-                                <>
-                                    <div className="absolute inset-0 animate-shimmer" />
                                     <Zap size={18} className="relative z-10 group-hover:scale-125 transition-transform" />
                                     <span className="relative z-10 text-white">Iniciar Consulta Automática</span>
                                 </>
                             )}
-                        </button>
-                    </div>
-                </div>
-            </div>
-            {/* Terminal de Logs */}
-            <div className="mt-8 animate-fade-in-up stagger-4">
-                <div className="glass rounded-2xl border border-white/5 overflow-hidden">
-                    <div className="bg-black/40 px-6 py-3 border-b border-white/5 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <div className="flex gap-1.5">
-                                <div className="w-2.5 h-2.5 rounded-full bg-red-500/20" />
-                                <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/20" />
-                                <div className="w-2.5 h-2.5 rounded-full bg-green-500/20" />
-                            </div>
-                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-2">Console do Sistema</span>
-                        </div>
-                        <button onClick={() => setLogs([])} className="text-[10px] text-gray-500 hover:text-white transition-colors uppercase font-bold tracking-widest">Limpar</button>
-                    </div>
-                    <div ref={terminalRef} className="h-48 overflow-y-auto p-4 font-mono text-[11px] leading-relaxed scrollbar-thin scrollbar-thumb-white/5">
-                        {logs.length === 0 ? (
-                            <div className="h-full flex items-center justify-center text-gray-700 italic">
-                                Aguardando atividades para exibir logs...
-                            </div>
-                        ) : (
-                            <div className="space-y-1">
-                                {logs.map((log, idx) => (
-                                    <div key={idx} className={`${log.includes('✅') ? 'text-emerald-400/80' : log.includes('❌') || log.includes('🚨') || log.includes('⚠️') ? 'text-rose-400/80' : 'text-gray-400'}`}>
-                                        {log}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                    </button>
                 </div>
             </div>
         </div>
+            {/* Terminal de Logs */ }
+    <div className="mt-8 animate-fade-in-up stagger-4">
+        <div className="glass rounded-2xl border border-white/5 overflow-hidden">
+            <div className="bg-black/40 px-6 py-3 border-b border-white/5 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <div className="flex gap-1.5">
+                        <div className="w-2.5 h-2.5 rounded-full bg-red-500/20" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/20" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-green-500/20" />
+                    </div>
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-2">Console do Sistema</span>
+                </div>
+                <button onClick={() => setLogs([])} className="text-[10px] text-gray-500 hover:text-white transition-colors uppercase font-bold tracking-widest">Limpar</button>
+            </div>
+            <div ref={terminalRef} className="h-48 overflow-y-auto p-4 font-mono text-[11px] leading-relaxed scrollbar-thin scrollbar-thumb-white/5">
+                {logs.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-gray-700 italic">
+                        Aguardando atividades para exibir logs...
+                    </div>
+                ) : (
+                    <div className="space-y-1">
+                        {logs.map((log, idx) => (
+                            <div key={idx} className={`${log.includes('✅') ? 'text-emerald-400/80' : log.includes('❌') || log.includes('🚨') || log.includes('⚠️') ? 'text-rose-400/80' : 'text-gray-400'}`}>
+                                {log}
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    </div>
+        </div >
     )
 }
 
