@@ -40,6 +40,8 @@ export default function AdminDashboard() {
     const [totalWhatsapp, setTotalWhatsapp] = useState(0)
     const [totalFixo, setTotalFixo] = useState(0)
     const [totalPendentes, setTotalPendentes] = useState(0)
+    const [totalIncompletos, setTotalIncompletos] = useState(0)
+    const [totalCompletos, setTotalCompletos] = useState(0)
     const [totalBancos, setTotalBancos] = useState(0)
     const [enriching, setEnriching] = useState(false)
     const [enrichProgress, setEnrichProgress] = useState({ current: 0, total: 0 })
@@ -71,23 +73,28 @@ export default function AdminDashboard() {
 
     const carregarStats = async () => {
         let queryTotal = supabase.from('clientes').select('*', { count: 'exact', head: true })
+        let queryIncompletos = supabase.from('clientes').select('*', { count: 'exact', head: true }).or('nome.is.null,nome.eq.,telefone.is.null,telefone.eq.')
         let queryWa = supabase.from('clientes').select('*', { count: 'exact', head: true }).ilike('telefone', '%✅%')
         let queryFixo = supabase.from('clientes').select('*', { count: 'exact', head: true }).or('telefone.ilike.%☎️%,telefone.ilike.%📞%')
         let queryPend = supabase.from('clientes').select('*', { count: 'exact', head: true }).not('telefone', 'ilike', '%✅%').not('telefone', 'ilike', '%☎️%').not('telefone', 'ilike', '%📞%').not('telefone', 'is', null)
 
         if (selectedBankId) {
             queryTotal = queryTotal.eq('banco_principal_id', selectedBankId)
+            queryIncompletos = queryIncompletos.eq('banco_principal_id', selectedBankId)
             queryWa = queryWa.eq('banco_principal_id', selectedBankId)
             queryFixo = queryFixo.eq('banco_principal_id', selectedBankId)
             queryPend = queryPend.eq('banco_principal_id', selectedBankId)
         }
 
         const { count: total } = await queryTotal
+        const { count: incompletos } = await queryIncompletos
         const { count: whatsapp } = await queryWa
         const { count: fixo } = await queryFixo
         const { count: pendentes } = await queryPend
 
         setTotalClientes(total || 0)
+        setTotalIncompletos(incompletos || 0)
+        setTotalCompletos((total || 0) - (incompletos || 0))
         setTotalWhatsapp(whatsapp || 0)
         setTotalFixo(fixo || 0)
         setTotalPendentes(pendentes || 0)
@@ -151,103 +158,111 @@ export default function AdminDashboard() {
     }
 
     const handleAutoConsultar = async () => {
-        // Busca todos os leads sem nome (apenas CPF) ou sem telefone
-        // Adicionamos .limit(2000) para garantir que pegamos todos os registros pendentes, já que o Supabase/PostgREST tem limite padrão
-        let query = supabase.from('clientes')
-            .select('id, cpf, nome, telefone')
-            .or('nome.is.null,nome.eq.,telefone.is.null,telefone.eq.')
-            .limit(2000)
-
-        if (selectedBankId) query = query.eq('banco_principal_id', selectedBankId)
-
-        const { data: leadsParaEnriquecer, error: queryError } = await query
-
-        if (queryError) {
-            alert('Erro ao buscar leads: ' + queryError.message)
-            return
-        }
-
-        if (!leadsParaEnriquecer || leadsParaEnriquecer.length === 0) {
-            alert('Não há fichas pendentes de consulta (todas já possuem nome e telefone).')
-            return
-        }
-
-        if (!confirm(`Foram encontrados ${leadsParaEnriquecer.length} registro(s) pendentes de informação. Deseja realizar a consulta automática agora?`)) return
-
-        setEnriching(true)
-        setEnrichProgress({ current: 0, total: leadsParaEnriquecer.length })
-
-        let apiUrl = localStorage.getItem('api_consulta_url') || 'https://completa.workbuscas.com/api?token={TOKEN}&modulo={MODULO}&consulta={PARAMETRO}'
-        let apiToken = localStorage.getItem('api_consulta_token') || 'doavTXJphHLkpayfbdNdJyGp'
-        let apiModulo = localStorage.getItem('api_consulta_modulo') || 'cpf'
-
         try {
-            const { data: dbConfigs } = await supabase.from('configuracoes').select('*')
-            if (dbConfigs) {
-                const urlObj = dbConfigs.find(c => c.key === 'api_consulta_url')
-                const tokenObj = dbConfigs.find(c => c.key === 'api_consulta_token')
-                const moduloObj = dbConfigs.find(c => c.key === 'api_consulta_modulo')
-                if (urlObj) apiUrl = urlObj.value
-                if (tokenObj) apiToken = tokenObj.value
-                if (moduloObj) apiModulo = moduloObj.value
+            console.log('Iniciando consulta automática...')
+
+            // Busca todos os leads sem nome (apenas CPF) ou sem telefone
+            // Usamos limit(2000) mas ordenamos por id para consistência
+            let query = supabase.from('clientes')
+                .select('id, cpf, nome, telefone')
+                .or('nome.is.null,nome.eq.,telefone.is.null,telefone.eq.')
+                .limit(2000)
+
+            if (selectedBankId) query = query.eq('banco_principal_id', selectedBankId)
+
+            const { data: leadsParaEnriquecer, error: queryError } = await query
+
+            if (queryError) {
+                alert('Erro ao buscar leads: ' + queryError.message)
+                return
             }
-        } catch (e) {
-            console.warn('Erro ao ler configs do banco')
-        }
 
-        const batchSize = 5
-        let totalSucessos = 0
-        let totalErros = 0
-        let totalExcluidos = 0
-        const erroDetalhes: string[] = []
+            if (!leadsParaEnriquecer || leadsParaEnriquecer.length === 0) {
+                alert('Não há fichas pendentes de consulta (todas já possuem nome e telefone).')
+                return
+            }
 
-        for (let i = 0; i < leadsParaEnriquecer.length; i += batchSize) {
-            const batch = leadsParaEnriquecer.slice(i, i + batchSize)
+            if (!confirm(`Foram encontrados ${leadsParaEnriquecer.length} registro(s) pendentes de informação. Deseja realizar a consulta automática agora?`)) return
+
+            setEnriching(true)
+            setEnrichProgress({ current: 0, total: leadsParaEnriquecer.length })
+
+            let apiUrl = localStorage.getItem('api_consulta_url') || 'https://completa.workbuscas.com/api?token={TOKEN}&modulo={MODULO}&consulta={PARAMETRO}'
+            let apiToken = localStorage.getItem('api_consulta_token') || 'doavTXJphHLkpayfbdNdJyGp'
+            let apiModulo = localStorage.getItem('api_consulta_modulo') || 'cpf'
 
             try {
-                const res = await fetch('/api/consulta-cpf', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        cpfs: batch,
-                        apiUrl,
-                        apiToken,
-                        apiModulo
-                    })
-                })
-
-                const result = await res.json()
-
-                if (result.success) {
-                    totalSucessos += result.sucessos || 0
-                    totalErros += (result.erros || 0)
-                    totalExcluidos += (result.excluidos || 0)
-                    if (result.detalhes) {
-                        result.detalhes.filter((d: any) => !d.sucesso).forEach((d: any) => {
-                            erroDetalhes.push(`CPF ${d.cpf}: ${d.erro}`)
-                        })
-                    }
-                } else if (result.error) {
-                    erroDetalhes.push(`Lote falhou: ${result.error}`)
-                    totalErros += batch.length
+                const { data: dbConfigs } = await supabase.from('configuracoes').select('*')
+                if (dbConfigs) {
+                    const urlObj = dbConfigs.find(c => c.key === 'api_consulta_url')
+                    const tokenObj = dbConfigs.find(c => c.key === 'api_consulta_token')
+                    const moduloObj = dbConfigs.find(c => c.key === 'api_consulta_modulo')
+                    if (urlObj) apiUrl = urlObj.value
+                    if (tokenObj) apiToken = tokenObj.value
+                    if (moduloObj) apiModulo = moduloObj.value
                 }
-            } catch (err: any) {
-                erroDetalhes.push(`Erro de rede: ${err.message}`)
-                totalErros += batch.length
+            } catch (e) {
+                console.warn('Erro ao ler configs do banco')
             }
 
-            setEnrichProgress({ current: Math.min(i + batchSize, leadsParaEnriquecer.length), total: leadsParaEnriquecer.length })
-        }
+            const batchSize = 5
+            let totalSucessos = 0
+            let totalErros = 0
+            let totalExcluidos = 0
+            const erroDetalhes: string[] = []
 
-        setEnriching(false)
-        carregarStats()
+            for (let i = 0; i < leadsParaEnriquecer.length; i += batchSize) {
+                const batch = leadsParaEnriquecer.slice(i, i + batchSize)
 
-        let msg = `Consulta finalizada!\n✨ Sucessos: ${totalSucessos}\n❌ Falhas: ${totalErros}\n🗑️ Excluídos por erro: ${totalExcluidos}`
-        if (erroDetalhes.length > 0) {
-            msg += `\n\n--- DETALHES DOS ERROS ---\n${erroDetalhes.slice(0, 5).join('\n')}`
-            if (erroDetalhes.length > 5) msg += `\n... e mais ${erroDetalhes.length - 5} erros`
+                try {
+                    const res = await fetch('/api/consulta-cpf', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            cpfs: batch,
+                            apiUrl,
+                            apiToken,
+                            apiModulo
+                        })
+                    })
+
+                    const result = await res.json()
+
+                    if (result.success) {
+                        totalSucessos += result.sucessos || 0
+                        totalErros += (result.erros || 0)
+                        totalExcluidos += (result.excluidos || 0)
+                        if (result.detalhes) {
+                            result.detalhes.filter((d: any) => !d.sucesso).forEach((d: any) => {
+                                erroDetalhes.push(`CPF ${d.cpf}: ${d.erro}`)
+                            })
+                        }
+                    } else if (result.error) {
+                        erroDetalhes.push(`Lote falhou: ${result.error}`)
+                        totalErros += batch.length
+                    }
+                } catch (err: any) {
+                    erroDetalhes.push(`Erro de rede: ${err.message}`)
+                    totalErros += batch.length
+                }
+
+                setEnrichProgress({ current: Math.min(i + batchSize, leadsParaEnriquecer.length), total: leadsParaEnriquecer.length })
+            }
+
+            setEnriching(false)
+            carregarStats()
+
+            let msg = `Consulta finalizada!\n✨ Sucessos: ${totalSucessos}\n❌ Falhas: ${totalErros}\n🗑️ Excluídos por erro: ${totalExcluidos}`
+            if (erroDetalhes.length > 0) {
+                msg += `\n\n--- DETALHES DOS ERROS ---\n${erroDetalhes.slice(0, 5).join('\n')}`
+                if (erroDetalhes.length > 5) msg += `\n... e mais ${erroDetalhes.length - 5} erros`
+            }
+            alert(msg)
+        } catch (error: any) {
+            console.error('Erro fatal no enrich:', error)
+            alert('Erro inesperado: ' + error.message)
+            setEnriching(false)
         }
-        alert(msg)
     }
 
     const handleLimparCadastros = async () => {
@@ -324,10 +339,10 @@ export default function AdminDashboard() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
                 <StatCard icon={<Users size={20} />} label="Total Leads" value={totalClientes} theme={theme} delay="stagger-1" />
-                <StatCard icon={<Smartphone size={20} />} label="WhatsApp" value={totalWhatsapp} theme={theme} delay="stagger-2" accent="green" />
-                <StatCard icon={<Phone size={20} />} label="Fixo / Outros" value={totalFixo} theme={theme} delay="stagger-3" accent="yellow" />
-                <StatCard icon={<RefreshCw size={20} />} label="Analisando" value={totalPendentes} theme={theme} delay="stagger-4" accent="purple" />
-                <StatCard icon={<Database size={20} />} label="Bancos" value={totalBancos} theme={theme} delay="stagger-5" accent="blue" />
+                <StatCard icon={<CheckCircle2 size={20} />} label="Completos" value={totalCompletos} theme={theme} delay="stagger-2" accent="green" />
+                <StatCard icon={<AlertCircle size={20} />} label="Aguardando Consulta" value={totalIncompletos} theme={theme} delay="stagger-3" accent="yellow" />
+                <StatCard icon={<Smartphone size={20} />} label="WhatsApp" value={totalWhatsapp} theme={theme} delay="stagger-4" accent="purple" />
+                <StatCard icon={<Phone size={20} />} label="Fixo / Outros" value={totalFixo} theme={theme} delay="stagger-5" accent="blue" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
