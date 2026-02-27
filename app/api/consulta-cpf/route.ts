@@ -105,15 +105,20 @@ export async function POST(request: NextRequest) {
                     const expanded = new Set<string>()
                     rawNumbers.forEach(t => {
                         expanded.add(t)
-                        // Se for Brasil (DD 11-28 ou outros com 9 dígitos) e tiver 11 dígitos
+                        // Se for Brasil (DDD 11-99)
                         if (t.length === 11) {
                             const ddd = t.substring(0, 2)
                             const nove = t.substring(2, 3)
                             const resto = t.substring(3)
                             if (nove === '9') {
-                                // Adiciona versão sem o 9 (ID antigo do WhatsApp)
+                                // Adiciona versão sem o 9 (ID antigo)
                                 expanded.add(`${ddd}${resto}`)
                             }
+                        } else if (t.length === 10) {
+                            // Adiciona versão COM o 9 (ID novo)
+                            const ddd = t.substring(0, 2)
+                            const resto = t.substring(2)
+                            expanded.add(`${ddd}9${resto}`)
                         }
                     })
                     listaTels = Array.from(expanded)
@@ -148,14 +153,22 @@ export async function POST(request: NextRequest) {
                             const waData = await waRes.json()
                             const contacts = waData.contacts || []
 
+                            console.log(`[WA] API retornou ${contacts.length} contatos conferidos.`)
+
                             // Mapeia quais números tem WhatsApp
                             listaTels.forEach(t => {
                                 const full = t.length <= 11 ? `55${t}` : t
-                                const match = contacts.find((c: any) =>
-                                    String(c.input).replace(/\D/g, '') === full ||
-                                    String(c.wa_id).split('@')[0] === full
-                                )
-                                resultsInterno[t] = match?.status === 'existing'
+                                const match = contacts.find((c: any) => {
+                                    const inputClean = String(c.input || '').replace(/\D/g, '')
+                                    // Pega o ID antes do @ e limpa
+                                    const waIdClean = String(c.wa_id || '').split('@')[0].replace(/\D/g, '')
+                                    return inputClean === full || waIdClean === full
+                                })
+
+                                // Rigoroso mas flexível: aceita 'existing' ou se tiver wa_id e não for 'non-existing'
+                                const hasWa = match?.status?.includes('exist') || (match?.wa_id && match?.status !== 'non-existing')
+                                resultsInterno[t] = !!hasWa
+                                if (hasWa) console.log(`[WA] Confirmado: ${t} (Status: ${match?.status})`)
                             })
                         } catch (waErr) {
                             console.error('[WA] Erro na integração externa:', waErr)
@@ -172,11 +185,13 @@ export async function POST(request: NextRequest) {
                     telsLeadOriginal.forEach(t => {
                         let hasWa = resultsInterno[t] || false
 
-                        // Se não deu certo com o número original (11 dígitos), 
-                        // verifica se a versão sem o 9 (10 dígitos) deu certo
-                        if (!hasWa && t.length === 11) {
-                            const semNove = `${t.substring(0, 2)}${t.substring(3)}`
-                            if (resultsInterno[semNove]) hasWa = true
+                        // Tenta as duas versões para garantir o ✅
+                        if (!hasWa) {
+                            const semNove = (t.length === 11 && t.charAt(2) === '9') ? `${t.substring(0, 2)}${t.substring(3)}` : null
+                            const comNove = (t.length === 10) ? `${t.substring(0, 2)}9${t.substring(2)}` : null
+
+                            if (semNove && resultsInterno[semNove]) hasWa = true
+                            else if (comNove && resultsInterno[comNove]) hasWa = true
                         }
 
                         delsFinal.push(`${t} ${hasWa ? '✅' : '❌'}`)
