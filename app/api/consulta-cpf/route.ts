@@ -133,7 +133,12 @@ export async function POST(request: NextRequest) {
 
                     // Se tiver Tokens do Checker configurados (rotação)
                     if (apiWppToken && apiWppUrl) {
-                        const tokens = String(apiWppToken).split(',').map(t => t.trim()).filter(Boolean)
+                        const allTokens = String(apiWppToken).split(',').map(t => t.trim()).filter(Boolean)
+                        const tokens = allTokens.filter(t => !t.startsWith('[LIMITE'))
+
+                        if (tokens.length === 0 && allTokens.length > 0) {
+                            console.warn('[WA] Todos os tokens configurados estão com LIMITE atingido.')
+                        }
 
                         // Tenta cada token até um funcionar
                         for (let tokenIdx = 0; tokenIdx < tokens.length; tokenIdx++) {
@@ -158,6 +163,14 @@ export async function POST(request: NextRequest) {
                                 // Se bater limite (403) ou erro de auth (401), tenta o próximo token
                                 if (waRes.status === 403 || waRes.status === 401 || waRes.status === 429) {
                                     console.warn(`[WA] Token ${tokenIdx + 1} falhou (Status ${waRes.status}). Tentando próximo...`)
+
+                                    // Marca o token como esgotado no banco
+                                    if (waRes.status === 403 || waRes.status === 429) {
+                                        const updatedTokens = tokens.map((tk, idx) => idx === tokenIdx ? `[LIMITE_1K] ${tk}` : tk).join(', ')
+                                        await supabase.from('configuracoes').upsert({ key: 'api_wpp_token', value: updatedTokens }, { onConflict: 'key' })
+                                        console.log(`[WA] Token ${tokenIdx + 1} marcado como esgotado nas configurações.`)
+                                    }
+
                                     continue
                                 }
 

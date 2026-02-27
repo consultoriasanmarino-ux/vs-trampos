@@ -1,11 +1,37 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Users, Search, Smartphone, Phone, AlertTriangle, Filter, Trash2, X, AlertCircle, RefreshCw, Shield } from 'lucide-react'
+import { Users, Search, Smartphone, Phone, AlertTriangle, Filter, Trash2, X, AlertCircle, RefreshCw, Shield, XCircle } from 'lucide-react'
 import { supabase, Cliente, Banco } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
 
 export default function LeadsPage() {
+    const renderTelefones = (telString: string) => {
+        if (!telString || telString === '—') return '—'
+
+        const parts = telString.split(',').map(p => p.trim())
+
+        return (
+            <div className="flex flex-wrap gap-2 max-w-[300px]">
+                {parts.map((p, idx) => {
+                    const hasWa = p.includes('✅')
+                    const hasFail = p.includes('❌')
+                    const numberOnly = p.replace(/[✅❌]/g, '').trim()
+
+                    return (
+                        <div key={idx} className="flex items-center gap-1.5 bg-white/[0.03] border border-white/[0.05] px-2 py-0.5 rounded-lg">
+                            <span className={`text-[11px] font-mono ${hasWa ? 'text-emerald-400' : hasFail ? 'text-rose-400' : 'text-gray-400'}`}>
+                                {numberOnly}
+                            </span>
+                            {hasWa && <Phone size={10} className="text-emerald-500 fill-emerald-500/20" />}
+                            {hasFail && <XCircle size={10} className="text-rose-500" />}
+                        </div>
+                    )
+                })}
+            </div>
+        )
+    }
+
     const { theme, selectedBankId, selectedBankName } = useBankTheme()
     const [clientes, setClientes] = useState<Cliente[]>([])
     const [bancos, setBancos] = useState<Banco[]>([])
@@ -71,7 +97,6 @@ export default function LeadsPage() {
 
         let query = supabase.from('clientes').delete().neq('id', '00000000-0000-0000-0000-000000000000') // Deleta tudo
 
-        // Se tiver banco selecionado, apaga só desse banco
         if (selectedBankId) {
             query = query.eq('banco_principal_id', selectedBankId)
         }
@@ -80,73 +105,71 @@ export default function LeadsPage() {
 
         if (!error) {
             setClientes([])
+            setTotalRegistros(0)
+            setTotalPaginas(1)
             setConfirmDeleteAll(false)
-            alert('Todos os leads foram removidos do banco de dados com sucesso.')
-        } else {
-            alert('Erro ao apagar leads: ' + error.message)
         }
-
         setDeletingAll(false)
     }
 
     const handleLimparChecks = async () => {
-        if (!confirm('Deseja realmente limpar as marcas de Check para re-conferir tudo?')) return
         setClearingCheck(true)
-
         try {
-            // 1. Busca todos os IDs e telefones atuais (filtrando por banco se necessário)
-            let fetchQuery = supabase.from('clientes').select('id, telefone')
-            if (selectedBankId) fetchQuery = fetchQuery.eq('banco_principal_id', selectedBankId)
+            let query = supabase.from('clientes').select('id, telefone')
+            if (selectedBankId) query = query.eq('banco_principal_id', selectedBankId)
 
-            const { data } = await fetchQuery
-            if (data && data.length > 0) {
-                // Prepara as atualizações limpando o ícone do telefone e o check
-                for (const item of data) {
-                    const cleanTel = (item.telefone || '').replace(/[✅❌]/g, '').trim()
-                    await supabase.from('clientes')
-                        .update({
-                            wpp_checked: false,
-                            telefone: cleanTel
-                        })
-                        .eq('id', item.id)
+            const { data } = await query
+            if (data) {
+                const batchSize = 100
+                for (let i = 0; i < data.length; i += batchSize) {
+                    const batch = data.slice(i, i + batchSize)
+                    const updates = batch.map(c => ({
+                        id: c.id,
+                        wpp_checked: false,
+                        telefone: c.telefone ? c.telefone.replace(/[✅❌]/g, '').trim() : null
+                    }))
+                    await supabase.from('clientes').upsert(updates)
                 }
-                alert('Checks resetados com sucesso! O robô agora vai re-conferir todos.')
                 carregarDados(pagina)
             }
-        } catch (error: any) {
-            alert('Erro ao limpar checks: ' + error.message)
+        } catch (err) {
+            console.error('Erro ao limpar checks:', err)
         }
         setClearingCheck(false)
     }
 
+    const statusLabel = (status: string, tel: string) => {
+        if (tel && (tel.includes('✅'))) return 'WhatsApp Encontrado'
+        if (tel && (tel.includes('❌'))) return 'Apenas Fixo / Inválido'
+        if (status === 'ativo') return 'WhatsApp Ativo'
+        if (status === 'fixo') return 'Telefone Fixo'
+        if (status === 'invalido') return 'Inválido'
+        return 'Não consultado'
+    }
+
+    const statusIcon = (status: string, tel: string) => {
+        const hasWa = tel && tel.includes('✅')
+        const hasFail = tel && tel.includes('❌')
+
+        if (hasWa) return <Phone size={14} className="text-emerald-500" />
+        if (hasFail) return <X size={14} className="text-rose-500" />
+        if (status === 'ativo') return <Phone size={14} className="text-emerald-500" />
+        if (status === 'invalido' || status === 'fixo') return <X size={14} className="text-rose-500" />
+        return < Smartphone size={14} className="text-gray-600" />
+    }
+
     const clientesFiltrados = clientes.filter(c => {
         if (!busca) return true
-        const termo = busca.toLowerCase()
-        return c.cpf?.toLowerCase().includes(termo) || c.nome?.toLowerCase().includes(termo) || c.telefone?.includes(termo)
+        const b = busca.toLowerCase()
+        return (
+            (c.cpf && c.cpf.includes(b)) ||
+            (c.nome && c.nome.toLowerCase().includes(b)) ||
+            (c.telefone && c.telefone.includes(b))
+        )
     })
 
-    const statusIcon = (status: string | null, telefone: string | null) => {
-        if (!status && telefone) return <RefreshCw size={14} className="text-purple-500 animate-spin" />
-        switch (status) {
-            case 'ativo': return <Smartphone size={14} className="text-green-500" />
-            case 'fixo': return <Phone size={14} className="text-yellow-500" />
-            case 'invalido': return <AlertTriangle size={14} className="text-red-500" />
-            default: return <span className="w-3 h-3 rounded-full bg-gray-800 inline-block" />
-        }
-    }
-
-    const statusLabel = (status: string | null, telefone: string | null) => {
-        if (!status && telefone) return 'Analisando...'
-        switch (status) {
-            case 'ativo': return 'WhatsApp'
-            case 'fixo': return 'Fixo'
-            case 'invalido': return 'Inválido'
-            default: return 'Sem info'
-        }
-    }
-
     return (
-        <div className="p-6 lg:p-8">
+        <div className="p-6 md:p-10 animate-fade-in max-w-[1600px] mx-auto">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 animate-fade-in-up">
                 <div>
                     <h1 className="text-2xl font-bold text-white tracking-tight">Leads</h1>
@@ -294,7 +317,7 @@ export default function LeadsPage() {
                                                 {c.validade_cartao || 'Sem info'}
                                             </span>
                                         </td>
-                                        <td className="px-5 py-3.5 text-sm text-gray-300 font-mono">{c.telefone || '—'}</td>
+                                        <td className="px-5 py-3.5 text-sm">{renderTelefones(c.telefone || '')}</td>
                                         <td className="px-5 py-3.5">
                                             <div className="flex items-center gap-1.5">
                                                 {statusIcon(c.status_whatsapp, c.telefone)}
