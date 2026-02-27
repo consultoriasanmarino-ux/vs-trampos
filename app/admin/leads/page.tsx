@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Users, Search, Smartphone, Phone, AlertTriangle, Filter, Trash2, X, AlertCircle, RefreshCw } from 'lucide-react'
+import { Users, Search, Smartphone, Phone, AlertTriangle, Filter, Trash2, X, AlertCircle, RefreshCw, Shield } from 'lucide-react'
 import { supabase, Cliente, Banco } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
 
