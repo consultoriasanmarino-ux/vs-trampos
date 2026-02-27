@@ -21,6 +21,15 @@ export default function LigadorPage() {
     const [userId, setUserId] = useState<string | null>(null)
     const [statusSemFichas, setStatusSemFichas] = useState(false)
 
+    // Paginação
+    const [pagina, setPagina] = useState(1)
+    const [totalPaginas, setTotalPaginas] = useState(1)
+    const [totalRegistros, setTotalRegistros] = useState(0)
+    const ITENS_POR_PAGINA = 12
+
+    // Ordenação
+    const [ordenacao, setOrdenacao] = useState('recentes')
+
     // Modal de conclusão
     const [concluirModal, setConcluirModal] = useState<{ id: string; nome: string } | null>(null)
     const [concluirTipo, setConcluirTipo] = useState<'concluido_sucesso' | 'concluido_erro' | null>(null)
@@ -85,32 +94,64 @@ export default function LigadorPage() {
         }
     }
 
-    // Carregar clientes quando selecionar banco
+    // Carregar clientes quando selecionar banco, mudar página, busca ou ordenação
+    useEffect(() => {
+        setPagina(1)
+    }, [bancoSelecionado, userId, busca, ordenacao])
+
     useEffect(() => {
         if (!bancoSelecionado || !userId) return
         carregarClientes()
-    }, [bancoSelecionado, userId])
+    }, [bancoSelecionado, userId, pagina, busca, ordenacao])
 
     const carregarClientes = async () => {
         if (!bancoSelecionado || !userId) return
         setLoading(true)
 
-        const { data } = await supabase
+        let query = supabase
             .from('clientes')
-            .select('*, bancos(nome)')
+            .select('*, bancos(nome)', { count: 'exact' })
             .eq('banco_principal_id', bancoSelecionado.id)
             .eq('atribuido_a', userId)
-            .order('created_at', { ascending: false })
+            .or('status_ficha.is.null,status_ficha.eq.pendente')
+
+        // Aplicar Ordenação
+        switch (ordenacao) {
+            case 'score_desc':
+                query = query.order('score', { ascending: false, nullsFirst: false })
+                break
+            case 'score_asc':
+                query = query.order('score', { ascending: true, nullsFirst: false })
+                break
+            case 'renda_desc':
+                query = query.order('renda', { ascending: false, nullsFirst: false })
+                break
+            case 'renda_asc':
+                query = query.order('renda', { ascending: true, nullsFirst: false })
+                break
+            default:
+                query = query.order('created_at', { ascending: false })
+        }
+
+        if (busca) {
+            query = query.or(`nome.ilike.%${busca}%,cpf.ilike.%${busca}%,telefone.ilike.%${busca}%`)
+        }
+
+        const from = (pagina - 1) * ITENS_POR_PAGINA
+        const to = from + ITENS_POR_PAGINA - 1
+        query = query.range(from, to)
+
+        const { data, count } = await query
 
         if (data) setClientes(data)
+        if (count !== null) {
+            setTotalRegistros(count)
+            setTotalPaginas(Math.ceil(count / ITENS_POR_PAGINA))
+        }
         setLoading(false)
     }
 
-    const clientesFiltrados = clientes.filter(c => {
-        if (!busca) return true
-        const termo = busca.toLowerCase()
-        return c.cpf?.toLowerCase().includes(termo) || c.nome?.toLowerCase().includes(termo) || c.telefone?.includes(termo)
-    })
+    const clientesFiltrados = clientes
 
     const theme = bancoSelecionado ? themeFromColor(bancoSelecionado.cor) : null
 
@@ -313,18 +354,33 @@ export default function LigadorPage() {
                 </button>
             </div>
 
-            {/* Busca */}
-            <div className="mb-8">
-                <div className="relative">
+            {/* Busca e Filtros */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                <div className="relative md:col-span-2">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600" size={18} />
                     <input
                         type="text"
                         value={busca}
                         onChange={(e) => setBusca(e.target.value)}
                         placeholder="Buscar por CPF, nome ou telefone..."
-                        className="w-full max-w-xl pl-12 pr-4 py-4 glass rounded-2xl text-white placeholder-gray-600 text-sm focus:outline-none focus:ring-2 transition-all"
+                        className="w-full pl-12 pr-4 py-4 glass rounded-2xl text-white placeholder-gray-600 text-sm focus:outline-none focus:ring-2 transition-all"
                         style={{ '--tw-ring-color': `rgba(${theme!.primaryRGB}, 0.4)` } as React.CSSProperties}
                     />
+                </div>
+
+                <div className="relative group">
+                    <TrendingUp className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-white transition-colors" size={16} />
+                    <select
+                        value={ordenacao}
+                        onChange={(e) => setOrdenacao(e.target.value)}
+                        className="w-full pl-12 pr-6 py-4 glass rounded-2xl text-white text-sm font-bold focus:outline-none appearance-none cursor-pointer border-white/5 hover:bg-white/[0.05] transition-all"
+                    >
+                        <option value="recentes" className="bg-[#0a0a0a]">MAIS RECENTES</option>
+                        <option value="score_desc" className="bg-[#0a0a0a]">MAIOR SCORE</option>
+                        <option value="score_asc" className="bg-[#0a0a0a]">MENOR SCORE</option>
+                        <option value="renda_desc" className="bg-[#0a0a0a]">MAIOR RENDA</option>
+                        <option value="renda_asc" className="bg-[#0a0a0a]">MENOR RENDA</option>
+                    </select>
                 </div>
             </div>
 
@@ -462,7 +518,7 @@ export default function LigadorPage() {
                                                             </div>
                                                         )}
                                                         <div className="opacity-0 group-hover/tel:opacity-100 transition-opacity">
-                                                            <Landmark size={12} className="text-gray-600" />
+                                                            <RefreshCw size={12} className="text-gray-600" />
                                                         </div>
                                                     </div>
                                                 </div>
@@ -493,6 +549,34 @@ export default function LigadorPage() {
                             </div>
                         </div>
                     ))}
+                </div>
+            )}
+
+            {/* Paginação */}
+            {!loading && totalPaginas > 1 && (
+                <div className="flex flex-col md:flex-row items-center justify-between gap-6 mt-12 pb-10 animate-fade-in">
+                    <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest text-center md:text-left">
+                        Página <span className="text-white">{pagina}</span> de <span className="text-white">{totalPaginas}</span>
+                        <span className="mx-3 opacity-20">|</span>
+                        Total de <span className="text-white">{totalRegistros}</span> fichas
+                    </p>
+
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setPagina(p => Math.max(1, p - 1))}
+                            disabled={pagina === 1}
+                            className="glass px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all border-white/5"
+                        >
+                            Anterior
+                        </button>
+                        <button
+                            onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
+                            disabled={pagina === totalPaginas}
+                            className="glass px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all border-white/5"
+                        >
+                            Próxima
+                        </button>
+                    </div>
                 </div>
             )}
 

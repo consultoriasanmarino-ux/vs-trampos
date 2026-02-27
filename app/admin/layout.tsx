@@ -17,7 +17,8 @@ import {
     Menu,
     X,
     Settings,
-    Shield
+    Shield,
+    Eye
 } from 'lucide-react'
 import { supabase, Banco } from '@/lib/supabase'
 import { BankThemeProvider, useBankTheme } from '@/lib/bank-theme'
@@ -30,6 +31,7 @@ const navItems = [
     { href: '/admin/ligadores', icon: UserCog, label: 'Ligadores' },
     { href: '/admin/gerentes', icon: Shield, label: 'Gerentes' },
     { href: '/admin/whatsapp', icon: MessageCircle, label: 'WhatsApp' },
+    { href: '/admin/fichas-resumidas', icon: Eye, label: 'Fichas Resumidas' },
     { href: '/admin/configuracoes', icon: Settings, label: 'Configurações' },
 ]
 

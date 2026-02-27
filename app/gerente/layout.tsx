@@ -14,7 +14,8 @@ import {
     Zap,
     Menu,
     X,
-    BarChart3
+    BarChart3,
+    Eye
 } from 'lucide-react'
 import { supabase, Banco } from '@/lib/supabase'
 import { BankThemeProvider, useBankTheme } from '@/lib/bank-theme'
@@ -24,6 +25,7 @@ const navItems = [
     { href: '/gerente/fichas', icon: CreditCard, label: 'Fichas' },
     { href: '/gerente/ligadores', icon: UserCog, label: 'Ligadores' },
     { href: '/gerente/desempenho', icon: BarChart3, label: 'Desempenho' },
+    { href: '/admin/fichas-resumidas', icon: Eye, label: 'Fichas Resumidas' },
 ]
 
 function GerenteContent({ children }: { children: React.ReactNode }) {
