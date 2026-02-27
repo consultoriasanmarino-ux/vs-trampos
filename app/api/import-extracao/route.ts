@@ -18,6 +18,17 @@ export async function POST(request: NextRequest) {
         const clientes: any[] = []
         const erros: string[] = []
 
+        // Validação de segurança: Verifica se o arquivo parece ser do formato correto
+        // Se for só uma lista de CPFs, vai falhar aqui.
+        if (lines.length > 0) {
+            const sample = text.substring(0, 1000).toUpperCase()
+            if (!sample.includes('BIN:') && !sample.includes('VAL:') && !sample.includes('NOME:')) {
+                return NextResponse.json({
+                    error: 'Formato inválido! Este campo aceita apenas arquivos de Log no formato completo (#N | BIN | VAL | NOME). Para importar apenas CPFs, use o campo da esquerda.'
+                }, { status: 400 })
+            }
+        }
+
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim()
             if (!line) continue
