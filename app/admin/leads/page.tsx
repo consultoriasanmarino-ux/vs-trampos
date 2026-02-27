@@ -10,6 +10,7 @@ export default function LeadsPage() {
     const [clientes, setClientes] = useState<Cliente[]>([])
     const [bancos, setBancos] = useState<Banco[]>([])
     const [filtroWhatsapp, setFiltroWhatsapp] = useState<string>('todos')
+    const [filtroCheck, setFiltroCheck] = useState<string>('todos')
     const [busca, setBusca] = useState('')
     const [loading, setLoading] = useState(true)
     const [deletingAll, setDeletingAll] = useState(false)
@@ -24,7 +25,7 @@ export default function LeadsPage() {
     useEffect(() => {
         setPagina(1)
         carregarDados(1)
-    }, [filtroWhatsapp, selectedBankId])
+    }, [filtroWhatsapp, filtroCheck, selectedBankId])
 
     useEffect(() => {
         carregarDados(pagina)
@@ -38,6 +39,8 @@ export default function LeadsPage() {
         let query = supabase.from('clientes').select('*, bancos(nome)', { count: 'exact' }).order('created_at', { ascending: false })
 
         if (filtroWhatsapp !== 'todos') query = query.eq('status_whatsapp', filtroWhatsapp)
+        if (filtroCheck === 'check') query = query.eq('wpp_checked', true)
+        if (filtroCheck === 'pendente') query = query.eq('wpp_checked', false)
         if (selectedBankId) query = query.eq('banco_principal_id', selectedBankId)
 
         const from = (page - 1) * ITENS_POR_PAGINA
@@ -186,6 +189,16 @@ export default function LeadsPage() {
                         <option value="fixo" className="bg-[#111]">Telefone Fixo</option>
                         <option value="invalido" className="bg-[#111]">Inválido</option>
                     </select>
+
+                    <select
+                        value={filtroCheck}
+                        onChange={(e) => setFiltroCheck(e.target.value)}
+                        className="glass rounded-xl px-4 py-3 text-white text-sm focus:outline-none appearance-none cursor-pointer"
+                    >
+                        <option value="todos" className="bg-[#111]">Todos Check</option>
+                        <option value="check" className="bg-[#111]">Somente Checkados</option>
+                        <option value="pendente" className="bg-[#111]">Somente Pendentes</option>
+                    </select>
                 </div>
             </div>
 
@@ -272,33 +285,35 @@ export default function LeadsPage() {
             </div>
 
             {/* Paginação */}
-            {!loading && totalPaginas > 1 && (
-                <div className="flex flex-col md:flex-row items-center justify-between gap-6 mt-8 pb-10">
-                    <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">
-                        Página <span className="text-white">{pagina}</span> de <span className="text-white">{totalPaginas}</span>
-                        <span className="mx-3 opacity-20">|</span>
-                        Total de <span className="text-white">{totalRegistros}</span> leads
-                    </p>
+            {
+                !loading && totalPaginas > 1 && (
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-6 mt-8 pb-10">
+                        <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">
+                            Página <span className="text-white">{pagina}</span> de <span className="text-white">{totalPaginas}</span>
+                            <span className="mx-3 opacity-20">|</span>
+                            Total de <span className="text-white">{totalRegistros}</span> leads
+                        </p>
 
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setPagina(p => Math.max(1, p - 1))}
-                            disabled={pagina === 1}
-                            className="glass px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all border-white/5"
-                        >
-                            Anterior
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setPagina(p => Math.max(1, p - 1))}
+                                disabled={pagina === 1}
+                                className="glass px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all border-white/5"
+                            >
+                                Anterior
+                            </button>
 
-                        <button
-                            onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
-                            disabled={pagina === totalPaginas}
-                            className="glass px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all border-white/5"
-                        >
-                            Próxima
-                        </button>
+                            <button
+                                onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
+                                disabled={pagina === totalPaginas}
+                                className="glass px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all border-white/5"
+                            >
+                                Próxima
+                            </button>
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     )
 }
