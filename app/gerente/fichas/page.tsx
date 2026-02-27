@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import {
     Users, Search, Smartphone, Phone, AlertTriangle,
     RefreshCw, UserPlus, ChevronDown, Check, X,
-    UserCog, Zap, CreditCard, Clock, CheckCircle2, XCircle
+    UserCog, Zap, CreditCard, Clock, CheckCircle2, XCircle,
+    TrendingUp
 } from 'lucide-react'
 import { supabase, Cliente, Ligador } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
@@ -19,15 +20,28 @@ export default function GerenteFichas() {
     const [assigningId, setAssigningId] = useState<string | null>(null)
     const [activeTab, setActiveTab] = useState<'atribuir' | 'andamento'>('atribuir')
 
+    // Paginação
+    const [pagina, setPagina] = useState(1)
+    const [totalPaginas, setTotalPaginas] = useState(1)
+    const [totalRegistros, setTotalRegistros] = useState(0)
+    const ITENS_POR_PAGINA = 24
+
+    // Ordenação
+    const [ordenacao, setOrdenacao] = useState('recentes')
+
     useEffect(() => {
         carregarLigadores()
     }, [])
 
     useEffect(() => {
+        setPagina(1)
+    }, [selectedBankId, filtroStatus, activeTab, busca, ordenacao])
+
+    useEffect(() => {
         if (selectedBankId) {
             carregarFichas()
         }
-    }, [selectedBankId, filtroStatus, activeTab])
+    }, [selectedBankId, filtroStatus, activeTab, pagina, busca, ordenacao])
 
     const carregarLigadores = async () => {
         const { data } = await supabase.from('ligadores').select('id, nome').order('nome')
@@ -35,24 +49,51 @@ export default function GerenteFichas() {
     }
 
     const carregarFichas = async () => {
+        if (!selectedBankId) return
         setLoading(true)
         let query = supabase
             .from('clientes')
-            .select('*')
-            .eq('banco_principal_id', selectedBankId!)
-            .ilike('telefone', '%✅%')
-            .order('created_at', { ascending: false })
+            .select('*', { count: 'exact' })
+            .eq('banco_principal_id', selectedBankId)
+
+        // Aplicar Ordenação
+        switch (ordenacao) {
+            case 'score_desc':
+                query = query.order('score', { ascending: false, nullsFirst: false })
+                break
+            case 'score_asc':
+                query = query.order('score', { ascending: true, nullsFirst: false })
+                break
+            case 'renda_desc':
+                query = query.order('renda', { ascending: false, nullsFirst: false })
+                break
+            case 'renda_asc':
+                query = query.order('renda', { ascending: true, nullsFirst: false })
+                break
+            default:
+                query = query.order('created_at', { ascending: false })
+        }
 
         if (activeTab === 'atribuir') {
-            // Se estiver na aba ATRIBUIR, só mostra quem não tem ligador
             query = query.is('atribuido_a', null)
         } else {
-            // Se estiver na aba ANDAMENTO, só mostra quem JÁ TEM ligador
             query = query.not('atribuido_a', 'is', null)
         }
 
-        const { data } = await query
+        if (busca) {
+            query = query.or(`nome.ilike.%${busca}%,cpf.ilike.%${busca}%,telefone.ilike.%${busca}%`)
+        }
+
+        const from = (pagina - 1) * ITENS_POR_PAGINA
+        const to = from + ITENS_POR_PAGINA - 1
+        query = query.range(from, to)
+
+        const { data, count } = await query
         if (data) setLeads(data)
+        if (count !== null) {
+            setTotalRegistros(count)
+            setTotalPaginas(Math.ceil(count / ITENS_POR_PAGINA))
+        }
         setLoading(false)
     }
 
@@ -75,13 +116,7 @@ export default function GerenteFichas() {
         setAssigningId(null)
     }
 
-    const leadsFiltrados = leads.filter(c => {
-        if (!busca) return true
-        const termo = busca.toLowerCase()
-        return (c.cpf?.toLowerCase().includes(termo) ||
-            c.nome?.toLowerCase().includes(termo) ||
-            c.telefone?.includes(termo))
-    })
+    const leadsFiltrados = leads
 
     const statusBadge = (status: string | null, telefone: string | null) => {
         if (!status && telefone) {
@@ -135,9 +170,9 @@ export default function GerenteFichas() {
                 </button>
             </div>
 
-            {/* Barra de Busca */}
-            <div className="mb-8 max-w-2xl">
-                <div className="relative">
+            {/* Filtros e Busca */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                <div className="relative md:col-span-2">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600" size={18} />
                     <input
                         type="text"
@@ -146,6 +181,21 @@ export default function GerenteFichas() {
                         placeholder="Buscar por nome, CPF ou celular..."
                         className="w-full pl-12 pr-6 py-4 glass rounded-3xl text-white placeholder-gray-700 text-sm font-medium focus:outline-none focus:ring-2 transition-all border-white/5"
                     />
+                </div>
+
+                <div className="relative group">
+                    <TrendingUp className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-white transition-colors" size={16} />
+                    <select
+                        value={ordenacao}
+                        onChange={(e) => setOrdenacao(e.target.value)}
+                        className="w-full pl-12 pr-6 py-4 glass rounded-3xl text-white text-sm font-bold focus:outline-none appearance-none cursor-pointer border-white/5 hover:bg-white/[0.05] transition-all"
+                    >
+                        <option value="recentes" className="bg-[#0a0a0a]">RECENTES</option>
+                        <option value="score_desc" className="bg-[#0a0a0a]">MAIOR SCORE</option>
+                        <option value="score_asc" className="bg-[#0a0a0a]">MENOR SCORE</option>
+                        <option value="renda_desc" className="bg-[#0a0a0a]">MAIOR RENDA</option>
+                        <option value="renda_asc" className="bg-[#0a0a0a]">MENOR RENDA</option>
+                    </select>
                 </div>
             </div>
 
@@ -191,6 +241,32 @@ export default function GerenteFichas() {
                                         <p className="text-xs font-black text-white">{c.renda ? `R$ ${c.renda.toLocaleString()}` : '—'}</p>
                                     </div>
                                 </div>
+
+                                {/* Telefones Ordenados */}
+                                {c.telefone && (
+                                    <div className="mb-6 space-y-2 max-h-[120px] overflow-y-auto pr-1 custom-scrollbar">
+                                        {c.telefone.split(',')
+                                            .map((t: string) => t.trim())
+                                            .sort((a: string, b: string) => {
+                                                const aIsWpp = a.includes('✅');
+                                                const bIsWpp = b.includes('✅');
+                                                if (aIsWpp && !bIsWpp) return -1;
+                                                if (!aIsWpp && bIsWpp) return 1;
+                                                return 0;
+                                            })
+                                            .slice(0, 3) // Mostra apenas os 3 primeiros para não poluir
+                                            .map((telVal: string, idx: number) => {
+                                                const hasWA = telVal.includes('✅')
+                                                const num = telVal.replace(/[✅☎️📞❌]/g, '').trim()
+                                                return (
+                                                    <div key={idx} className="flex items-center justify-between text-[10px] bg-white/5 p-2 rounded-lg border border-white/5">
+                                                        <span className="font-mono text-gray-400">{num}</span>
+                                                        {hasWA && <span className="text-[8px] font-black text-emerald-400">WPP</span>}
+                                                    </div>
+                                                )
+                                            })}
+                                    </div>
+                                )}
 
                                 {/* Botão de Atribuição Dentro do Card */}
                                 <div
@@ -247,6 +323,7 @@ export default function GerenteFichas() {
                             <thead>
                                 <tr className="border-b border-white/5 bg-white/[0.01]">
                                     <th className="p-5 text-left text-[10px] font-black text-gray-600 uppercase tracking-widest">Nome / CPF</th>
+                                    <th className="p-5 text-left text-[10px] font-black text-gray-600 uppercase tracking-widest">Telefone Principal</th>
                                     <th className="p-5 text-left text-[10px] font-black text-gray-600 uppercase tracking-widest">Ligador Atribuído</th>
                                     <th className="p-5 text-left text-[10px] font-black text-gray-600 uppercase tracking-widest">Banco</th>
                                     <th className="p-5 text-left text-[10px] font-black text-gray-600 uppercase tracking-widest">Status Ficha</th>
@@ -263,6 +340,25 @@ export default function GerenteFichas() {
                                                     <span className="text-sm font-black text-white">{f.nome || 'Sem Nome'}</span>
                                                     <span className="text-[10px] font-mono font-bold text-gray-600">{f.cpf}</span>
                                                 </div>
+                                            </td>
+                                            <td className="p-5">
+                                                {f.telefone ? (
+                                                    <div className="flex items-center gap-2">
+                                                        {f.telefone.split(',')
+                                                            .map((t: string) => t.trim())
+                                                            .sort((a: string, b: string) => {
+                                                                const aIsWpp = a.includes('✅');
+                                                                const bIsWpp = b.includes('✅');
+                                                                if (aIsWpp && !bIsWpp) return -1;
+                                                                if (!aIsWpp && bIsWpp) return 1;
+                                                                return 0;
+                                                            })[0] // Pega o principal (primeiro após sort)
+                                                            .replace(/[✅☎️📞❌]/g, '').trim()}
+                                                        {f.telefone.includes('✅') && (
+                                                            <span className="text-[8px] font-black text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">WPP</span>
+                                                        )}
+                                                    </div>
+                                                ) : <span className="text-gray-700">—</span>}
                                             </td>
                                             <td className="p-5">
                                                 <div className="flex items-center gap-3">
@@ -292,6 +388,58 @@ export default function GerenteFichas() {
                                 })}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            )}
+
+            {/* Paginação */}
+            {!loading && totalPaginas > 1 && (
+                <div className="flex flex-col md:flex-row items-center justify-between gap-6 mt-12 pb-10 animate-fade-in">
+                    <p className="text-gray-500 text-xs font-black uppercase tracking-widest text-center md:text-left">
+                        Página <span className="text-white">{pagina}</span> de <span className="text-white">{totalPaginas}</span>
+                        <span className="mx-3 opacity-20">|</span>
+                        Total de <span className="text-white">{totalRegistros}</span> fichas
+                    </p>
+
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setPagina(p => Math.max(1, p - 1))}
+                            disabled={pagina === 1}
+                            className="glass px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all border-white/5"
+                        >
+                            Anterior
+                        </button>
+
+                        <div className="flex items-center gap-1 px-4 hidden sm:flex">
+                            {[...Array(Math.min(5, totalPaginas))].map((_, i) => {
+                                let pageNum = pagina;
+                                if (totalPaginas <= 5) pageNum = i + 1;
+                                else if (pagina <= 3) pageNum = i + 1;
+                                else if (pagina >= totalPaginas - 2) pageNum = totalPaginas - 4 + i;
+                                else pageNum = pagina - 2 + i;
+
+                                return (
+                                    <button
+                                        key={pageNum}
+                                        onClick={() => setPagina(pageNum)}
+                                        className={`w-10 h-10 rounded-xl text-xs font-bold transition-all ${pagina === pageNum
+                                            ? 'bg-white/10 text-white shadow-lg border border-white/20'
+                                            : 'text-gray-600 hover:text-gray-400'
+                                            }`}
+                                    >
+                                        {pageNum}
+                                    </button>
+                                )
+                            })}
+                        </div>
+
+                        <button
+                            onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
+                            disabled={pagina === totalPaginas}
+                            className="glass px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all border-white/5"
+                        >
+                            Próxima
+                        </button>
                     </div>
                 </div>
             )}

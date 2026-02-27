@@ -6,7 +6,7 @@ import {
     Star, Filter, RefreshCw, Calendar, UserCheck,
     ShieldCheck, DollarSign, ExternalLink, Trash2,
     ChevronDown, Check, X, UserCog, MessageCircle, Zap,
-    Cpu, Globe, Database
+    Cpu, Globe, Database, TrendingUp
 } from 'lucide-react'
 import { supabase, Cliente, Banco } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
@@ -23,13 +23,26 @@ export default function FichasAdminPage() {
     const [enriching, setEnriching] = useState(false)
     const [enrichProgress, setEnrichProgress] = useState({ current: 0, total: 0 })
 
+    // Paginação
+    const [pagina, setPagina] = useState(1)
+    const [totalPaginas, setTotalPaginas] = useState(1)
+    const [totalRegistros, setTotalRegistros] = useState(0)
+    const ITENS_POR_PAGINA = 24
+
+    // Ordenação
+    const [ordenacao, setOrdenacao] = useState('recentes')
+
     useEffect(() => {
         carregarLigadores()
     }, [])
 
     useEffect(() => {
+        setPagina(1)
+    }, [selectedBankId, filtroStatus, filtroLigador, busca, ordenacao])
+
+    useEffect(() => {
         carregarFichas()
-    }, [selectedBankId, filtroStatus, filtroLigador])
+    }, [selectedBankId, filtroStatus, filtroLigador, pagina, busca, ordenacao])
 
     const carregarLigadores = async () => {
         const { data } = await supabase.from('ligadores').select('id, nome')
@@ -41,8 +54,25 @@ export default function FichasAdminPage() {
         // Query simples sem JOIN problemático
         let query = supabase
             .from('clientes')
-            .select('*, bancos(nome)')
-            .order('created_at', { ascending: false })
+            .select('*, bancos(nome)', { count: 'exact' })
+
+        // Aplicar Ordenação
+        switch (ordenacao) {
+            case 'score_desc':
+                query = query.order('score', { ascending: false, nullsFirst: false })
+                break
+            case 'score_asc':
+                query = query.order('score', { ascending: true, nullsFirst: false })
+                break
+            case 'renda_desc':
+                query = query.order('renda', { ascending: false, nullsFirst: false })
+                break
+            case 'renda_asc':
+                query = query.order('renda', { ascending: true, nullsFirst: false })
+                break
+            default:
+                query = query.order('created_at', { ascending: false })
+        }
 
         if (selectedBankId) {
             query = query.eq('banco_principal_id', selectedBankId)
@@ -58,11 +88,23 @@ export default function FichasAdminPage() {
             query = query.eq('atribuido_a', filtroLigador)
         }
 
-        const { data, error } = await query
+        if (busca) {
+            query = query.or(`nome.ilike.%${busca}%,cpf.ilike.%${busca}%,telefone.ilike.%${busca}%`)
+        }
+
+        const from = (pagina - 1) * ITENS_POR_PAGINA
+        const to = from + ITENS_POR_PAGINA - 1
+        query = query.range(from, to)
+
+        const { data, error, count } = await query
         if (error) {
             console.error('Erro ao carregar fichas:', error)
         }
         if (data) setLeads(data)
+        if (count !== null) {
+            setTotalRegistros(count)
+            setTotalPaginas(Math.ceil(count / ITENS_POR_PAGINA))
+        }
         setLoading(false)
     }
 
@@ -98,13 +140,7 @@ export default function FichasAdminPage() {
         }
     }
 
-    const leadsFiltrados = leads.filter(c => {
-        if (!busca) return true
-        const termo = busca.toLowerCase()
-        return c.cpf?.toLowerCase().includes(termo) ||
-            c.nome?.toLowerCase().includes(termo) ||
-            c.telefone?.includes(termo)
-    })
+    const leadsFiltrados = leads
 
     const getNomeLigador = (id: string | null) => {
         if (!id) return null
@@ -277,7 +313,7 @@ export default function FichasAdminPage() {
                         )}
                     </h1>
                     <p className="text-gray-500 text-sm mt-2 font-medium">
-                        {leadsFiltrados.length === 0 ? 'Nenhuma ficha disponível' : `${leadsFiltrados.length} ficha(s) pendentes de ação`}
+                        {totalRegistros === 0 ? 'Nenhuma ficha disponível' : `${totalRegistros} ficha(s) encontrada(s)`}
                     </p>
                 </div>
 
@@ -382,6 +418,21 @@ export default function FichasAdminPage() {
                         {ligadores.map(l => (
                             <option key={l.id} value={l.id} className="bg-[#0a0a0a]">{l.nome.toUpperCase()}</option>
                         ))}
+                    </select>
+                </div>
+
+                <div className="relative group col-span-1 md:col-span-1">
+                    <TrendingUp className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-white transition-colors" size={16} />
+                    <select
+                        value={ordenacao}
+                        onChange={(e) => setOrdenacao(e.target.value)}
+                        className="w-full pl-12 pr-6 py-4 glass rounded-3xl text-white text-sm font-bold focus:outline-none appearance-none cursor-pointer border-white/5 hover:bg-white/[0.05] transition-all"
+                    >
+                        <option value="recentes" className="bg-[#0a0a0a]">RECENTES PRIMEIRO</option>
+                        <option value="score_desc" className="bg-[#0a0a0a]">MAIOR SCORE</option>
+                        <option value="score_asc" className="bg-[#0a0a0a]">MENOR SCORE</option>
+                        <option value="renda_desc" className="bg-[#0a0a0a]">MAIOR RENDA</option>
+                        <option value="renda_asc" className="bg-[#0a0a0a]">MENOR RENDA</option>
                     </select>
                 </div>
             </div>
@@ -503,43 +554,51 @@ export default function FichasAdminPage() {
                                         </div>
                                         {c.telefone ? (
                                             <div className="max-h-[220px] overflow-y-auto pr-2 space-y-2 custom-scrollbar">
-                                                {c.telefone.split(',').map((telRaw: string, idx: number) => {
-                                                    const telVal = telRaw.trim()
-                                                    const hasWA = telVal.includes('✅')
-                                                    const hasFix = telVal.includes('☎️') || telVal.includes('📞')
-                                                    const hasInv = telVal.includes('❌')
-                                                    const telNumber = telVal.replace(/[✅☎️📞❌]/g, '').trim()
+                                                {c.telefone.split(',')
+                                                    .map((t: string) => t.trim())
+                                                    .sort((a: string, b: string) => {
+                                                        const aIsWpp = a.includes('✅');
+                                                        const bIsWpp = b.includes('✅');
+                                                        if (aIsWpp && !bIsWpp) return -1;
+                                                        if (!aIsWpp && bIsWpp) return 1;
+                                                        return 0;
+                                                    })
+                                                    .map((telVal: string, idx: number) => {
+                                                        const hasWA = telVal.includes('✅')
+                                                        const hasFix = telVal.includes('☎️') || telVal.includes('📞')
+                                                        const hasInv = telVal.includes('❌')
+                                                        const telNumber = telVal.replace(/[✅☎️📞❌]/g, '').trim()
 
-                                                    return (
-                                                        <div key={idx} className="bg-white/[0.03] hover:bg-white/[0.06] rounded-2xl p-4 flex items-center justify-between border border-white/[0.05] transition-all group/phone overflow-hidden relative">
-                                                            <div className="flex items-center gap-4">
-                                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border border-white/5 transition-colors ${hasWA ? 'bg-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'bg-gray-950'}`}>
-                                                                    {hasWA ? (
-                                                                        <WppLogo size={18} />
-                                                                    ) : hasFix ? (
-                                                                        <Phone size={16} className="text-amber-500" />
-                                                                    ) : hasInv ? (
-                                                                        <AlertTriangle size={16} className="text-rose-500/50" />
-                                                                    ) : (
-                                                                        <Phone size={16} className="text-gray-600" />
-                                                                    )}
-                                                                </div>
-                                                                <div>
-                                                                    <div className="flex items-center gap-2 mb-0.5">
-                                                                        <p className="text-[9px] font-black text-gray-700 uppercase tracking-tighter">Telefone {idx + 1}</p>
-                                                                        {hasWA && (
-                                                                            <div className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
-                                                                                <WppLogo size={8} />
-                                                                                <span className="text-[8px] font-black text-emerald-400 uppercase tracking-tighter">WPP ATIVO</span>
-                                                                            </div>
+                                                        return (
+                                                            <div key={idx} className="bg-white/[0.03] hover:bg-white/[0.06] rounded-2xl p-4 flex items-center justify-between border border-white/[0.05] transition-all group/phone overflow-hidden relative">
+                                                                <div className="flex items-center gap-4">
+                                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border border-white/5 transition-colors ${hasWA ? 'bg-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'bg-gray-950'}`}>
+                                                                        {hasWA ? (
+                                                                            <WppLogo size={18} />
+                                                                        ) : hasFix ? (
+                                                                            <Phone size={16} className="text-amber-500" />
+                                                                        ) : hasInv ? (
+                                                                            <AlertTriangle size={16} className="text-rose-500/50" />
+                                                                        ) : (
+                                                                            <Phone size={16} className="text-gray-600" />
                                                                         )}
                                                                     </div>
-                                                                    <p className="text-sm font-mono font-black text-gray-400 tracking-wider group-hover/phone:text-white transition-colors">{telNumber}</p>
+                                                                    <div>
+                                                                        <div className="flex items-center gap-2 mb-0.5">
+                                                                            <p className="text-[9px] font-black text-gray-700 uppercase tracking-tighter">Telefone</p>
+                                                                            {hasWA && (
+                                                                                <div className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                                                                                    <WppLogo size={8} />
+                                                                                    <span className="text-[8px] font-black text-emerald-400 uppercase tracking-tighter">WPP ATIVO</span>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                        <p className="text-sm font-mono font-black text-gray-400 tracking-wider group-hover/phone:text-white transition-colors">{telNumber}</p>
+                                                                    </div>
                                                                 </div>
                                                             </div>
-                                                        </div>
-                                                    )
-                                                })}
+                                                        )
+                                                    })}
                                             </div>
                                         ) : (
                                             <div className="bg-white/[0.02] rounded-2xl p-6 flex flex-col items-center justify-center gap-3 border border-dashed border-white/10 opacity-40">
@@ -643,6 +702,64 @@ export default function FichasAdminPage() {
                     </div>
                 )
             }
+
+            {/* Paginação */}
+            {!loading && totalPaginas > 1 && (
+                <div className="flex flex-col md:flex-row items-center justify-between gap-6 mt-16 pb-10 animate-fade-in">
+                    <p className="text-gray-500 text-xs font-black uppercase tracking-widest">
+                        Página <span className="text-white">{pagina}</span> de <span className="text-white">{totalPaginas}</span>
+                        <span className="mx-3 opacity-20">|</span>
+                        Total de <span className="text-white">{totalRegistros}</span> fichas
+                    </p>
+
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setPagina(p => Math.max(1, p - 1))}
+                            disabled={pagina === 1}
+                            className="glass px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all border-white/5"
+                        >
+                            Anterior
+                        </button>
+
+                        <div className="flex items-center gap-1 px-4">
+                            {[...Array(Math.min(5, totalPaginas))].map((_, i) => {
+                                // Lógica simples para mostrar páginas próximas à atual
+                                let pageNum = pagina;
+                                if (totalPaginas <= 5) {
+                                    pageNum = i + 1;
+                                } else if (pagina <= 3) {
+                                    pageNum = i + 1;
+                                } else if (pagina >= totalPaginas - 2) {
+                                    pageNum = totalPaginas - 4 + i;
+                                } else {
+                                    pageNum = pagina - 2 + i;
+                                }
+
+                                return (
+                                    <button
+                                        key={pageNum}
+                                        onClick={() => setPagina(pageNum)}
+                                        className={`w-10 h-10 rounded-xl text-xs font-bold transition-all ${pagina === pageNum
+                                            ? 'bg-white/10 text-white shadow-lg border border-white/20'
+                                            : 'text-gray-600 hover:text-gray-400'
+                                            }`}
+                                    >
+                                        {pageNum}
+                                    </button>
+                                )
+                            })}
+                        </div>
+
+                        <button
+                            onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
+                            disabled={pagina === totalPaginas}
+                            className="glass px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all border-white/5"
+                        >
+                            Próxima
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Injetar estilos customizados para a scrollbar fina */}
             <style jsx global>{`
