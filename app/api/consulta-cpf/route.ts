@@ -172,7 +172,14 @@ export async function POST(request: NextRequest) {
                                     const match = contacts.find((c: any) => {
                                         const inputClean = String(c.input || '').replace(/\D/g, '')
                                         const waIdClean = String(c.wa_id || '').split('@')[0].replace(/\D/g, '')
-                                        return inputClean === full || waIdClean === full
+                                        // Compara com DDI (55...) ou sem DDI
+                                        const isMatch = inputClean === full || waIdClean === full || inputClean === t || waIdClean === t
+                                        if (isMatch) {
+                                            console.log(`[WA-DEBUG] Match encontrado para ${t}: inputClean=${inputClean}, waIdClean=${waIdClean}, full=${full}`)
+                                        } else {
+                                            console.log(`[WA-DEBUG] No match para ${t}: inputClean=${inputClean}, waIdClean=${waIdClean}, full=${full}`)
+                                        }
+                                        return isMatch
                                     })
 
                                     const hasWa = match?.status?.includes('exist') || (match?.wa_id && match?.status !== 'non-existing')
@@ -191,7 +198,7 @@ export async function POST(request: NextRequest) {
 
                     // Agora que temos os resultados das variações, remontamos a lista original do lead
                     // mas marcamos ✅ se QUALQUER variação (com ou sem 9) deu certo.
-                    const telsLeadOriginal = Array.from(new Set(telefonesRaw.map((t: any) => {
+                    const telsLeadOriginal = Array.from(new Set(sourceRaw.map((t: any) => {
                         const val = t.telefone || t.Telefone || t.phone || t.numero || (typeof t === 'string' ? t : null)
                         return val ? String(val).replace(/\D/g, '') : null
                     }).filter(Boolean))) as string[]
@@ -199,19 +206,26 @@ export async function POST(request: NextRequest) {
                     telsLeadOriginal.forEach(t => {
                         let hasWa = resultsInterno[t] || false
 
-                        // Tenta as duas versões para garantir o ✅
+                        // Tenta as duas versões (com e sem 9) para garantir o ✅
                         if (!hasWa) {
                             const semNove = (t.length === 11 && t.charAt(2) === '9') ? `${t.substring(0, 2)}${t.substring(3)}` : null
                             const comNove = (t.length === 10) ? `${t.substring(0, 2)}9${t.substring(2)}` : null
 
-                            if (semNove && resultsInterno[semNove]) hasWa = true
-                            else if (comNove && resultsInterno[comNove]) hasWa = true
+                            if (semNove && resultsInterno[semNove]) {
+                                hasWa = true
+                                console.log(`[WA-MERGE] Sucesso via variação sem 9: ${t}`)
+                            }
+                            else if (comNove && resultsInterno[comNove]) {
+                                hasWa = true
+                                console.log(`[WA-MERGE] Sucesso via variação com 9: ${t}`)
+                            }
                         }
 
                         delsFinal.push(`${t} ${hasWa ? '✅' : '❌'}`)
                     })
 
                     telefoneComStatus = delsFinal.join(', ')
+                    console.log(`[WA-FINAL] Resultado do lead: ${telefoneComStatus}`)
                 }
 
                 // Renda
