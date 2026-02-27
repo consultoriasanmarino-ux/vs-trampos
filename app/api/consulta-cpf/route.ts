@@ -215,7 +215,7 @@ export async function POST(request: NextRequest) {
                 }
 
                 // Renda
-                const economicosData = result.DadosEconomicos || result.dadosEconomicos || {}
+                const economicosData = result?.DadosEconomicos || result?.dadosEconomicos || result?.dados_economicos || {}
                 const rendaRaw = economicosData.renda || economicosData.Renda || economicosData.income || ''
                 let rendaNum: number | null = null
                 if (rendaRaw) {

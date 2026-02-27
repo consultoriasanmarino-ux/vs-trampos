@@ -48,6 +48,13 @@ export default function AdminDashboard() {
     const [enriching, setEnriching] = useState(false)
     const [enrichProgress, setEnrichProgress] = useState({ current: 0, total: 0 })
     const shouldStopEnrich = useRef(false)
+    const [logs, setLogs] = useState<string[]>([])
+    const terminalRef = useRef<HTMLDivElement>(null)
+
+    const addLog = (msg: string) => {
+        const time = new Date().toLocaleTimeString('pt-BR', { hour12: false })
+        setLogs(prev => [`[${time}] ${msg}`, ...prev].slice(0, 100))
+    }
 
     useEffect(() => {
         carregarBancos()
@@ -65,6 +72,12 @@ export default function AdminDashboard() {
             supabase.removeChannel(channel)
         }
     }, [selectedBankId])
+
+    useEffect(() => {
+        if (terminalRef.current) {
+            terminalRef.current.scrollTop = 0
+        }
+    }, [logs])
 
     const carregarBancos = async () => {
         const { data } = await supabase.from('bancos').select('*').order('nome')
@@ -174,8 +187,9 @@ export default function AdminDashboard() {
                 return
             }
 
-            console.log('Iniciando consulta automática...')
+            addLog('🚀 Iniciando consulta automática...')
             shouldStopEnrich.current = false
+            setLogs([]) // Limpa os logs ao iniciar
 
             // Busca todos os leads sem nome (apenas CPF), sem telefone ou que ainda não foram verificados no WhatsApp
             let query = supabase.from('clientes')
@@ -237,6 +251,7 @@ export default function AdminDashboard() {
             for (let i = 0; i < leadsParaEnriquecer.length; i += batchSize) {
                 if (shouldStopEnrich.current) {
                     console.log('Interrupção solicitada pelo usuário.')
+                    addLog('🛑 Operação interrompida pelo usuário.')
                     break
                 }
                 const batch = leadsParaEnriquecer.slice(i, i + batchSize)
@@ -261,17 +276,20 @@ export default function AdminDashboard() {
                         totalSucessos += result.sucessos || 0
                         totalErros += (result.erros || 0)
                         totalExcluidos += (result.excluidos || 0)
+
+                        // Adiciona logs detalhados do lote
                         if (result.detalhes) {
-                            result.detalhes.filter((d: any) => !d.sucesso).forEach((d: any) => {
-                                erroDetalhes.push(`CPF ${d.cpf}: ${d.erro}`)
+                            result.detalhes.forEach((d: any) => {
+                                if (d.sucesso) addLog(`✅ CPF ${d.cpf}: Enriquecido e verificado.`)
+                                else addLog(`❌ CPF ${d.cpf}: ${d.erro}`)
                             })
                         }
                     } else if (result.error) {
-                        erroDetalhes.push(`Lote falhou: ${result.error}`)
+                        addLog(`⚠️ Erro no lote: ${result.error}`)
                         totalErros += batch.length
                     }
                 } catch (err: any) {
-                    erroDetalhes.push(`Erro de rede: ${err.message}`)
+                    addLog(`🚨 Erro de rede: ${err.message}`)
                     totalErros += batch.length
                 }
 
@@ -502,6 +520,37 @@ export default function AdminDashboard() {
                                 </>
                             )}
                         </button>
+                    </div>
+                </div>
+            </div>
+            {/* Terminal de Logs */}
+            <div className="mt-8 animate-fade-in-up stagger-4">
+                <div className="glass rounded-2xl border border-white/5 overflow-hidden">
+                    <div className="bg-black/40 px-6 py-3 border-b border-white/5 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <div className="flex gap-1.5">
+                                <div className="w-2.5 h-2.5 rounded-full bg-red-500/20" />
+                                <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/20" />
+                                <div className="w-2.5 h-2.5 rounded-full bg-green-500/20" />
+                            </div>
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-2">Console do Sistema</span>
+                        </div>
+                        <button onClick={() => setLogs([])} className="text-[10px] text-gray-500 hover:text-white transition-colors uppercase font-bold tracking-widest">Limpar</button>
+                    </div>
+                    <div ref={terminalRef} className="h-48 overflow-y-auto p-4 font-mono text-[11px] leading-relaxed scrollbar-thin scrollbar-thumb-white/5">
+                        {logs.length === 0 ? (
+                            <div className="h-full flex items-center justify-center text-gray-700 italic">
+                                Aguardando atividades para exibir logs...
+                            </div>
+                        ) : (
+                            <div className="space-y-1">
+                                {logs.map((log, idx) => (
+                                    <div key={idx} className={`${log.includes('✅') ? 'text-emerald-400/80' : log.includes('❌') || log.includes('🚨') || log.includes('⚠️') ? 'text-rose-400/80' : 'text-gray-400'}`}>
+                                        {log}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
