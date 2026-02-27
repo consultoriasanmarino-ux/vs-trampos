@@ -46,6 +46,7 @@ export default function AdminDashboard() {
     const [totalBancos, setTotalBancos] = useState(0)
     const [enriching, setEnriching] = useState(false)
     const [enrichProgress, setEnrichProgress] = useState({ current: 0, total: 0 })
+    const shouldStopEnrich = useRef(false)
 
     useEffect(() => {
         carregarBancos()
@@ -167,7 +168,13 @@ export default function AdminDashboard() {
 
     const handleAutoConsultar = async () => {
         try {
+            if (!selectedBankId) {
+                alert('Selecione um banco primeiro.')
+                return
+            }
+
             console.log('Iniciando consulta automática...')
+            shouldStopEnrich.current = false
 
             // Busca todos os leads sem nome (apenas CPF), sem telefone ou que ainda não foram verificados no WhatsApp
             let query = supabase.from('clientes')
@@ -227,6 +234,10 @@ export default function AdminDashboard() {
             const erroDetalhes: string[] = []
 
             for (let i = 0; i < leadsParaEnriquecer.length; i += batchSize) {
+                if (shouldStopEnrich.current) {
+                    console.log('Interrupção solicitada pelo usuário.')
+                    break
+                }
                 const batch = leadsParaEnriquecer.slice(i, i + batchSize)
 
                 try {
@@ -452,8 +463,16 @@ export default function AdminDashboard() {
                                     <span className="text-gray-500">Progresso da Operação</span>
                                     <span style={{ color: theme.primary }}>{enrichProgress.current} / {enrichProgress.total}</span>
                                 </div>
-                                <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden border border-white/5">
-                                    <div className="h-full transition-all duration-500 animate-pulse" style={{ width: enrichProgress.total > 0 ? `${(enrichProgress.current / enrichProgress.total) * 100}%` : '0%', background: `linear-gradient(to right, ${theme.primary}, ${theme.primary}88)` }} />
+                                <div className="flex gap-2">
+                                    <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+                                        <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${(enrichProgress.current / enrichProgress.total) * 100}%` }} />
+                                    </div>
+                                    <button
+                                        onClick={() => { shouldStopEnrich.current = true }}
+                                        className="px-3 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-red-500/20 transition-all"
+                                    >
+                                        Parar
+                                    </button>
                                 </div>
                             </div>
                         )}
