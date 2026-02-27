@@ -38,13 +38,13 @@ def check_number_manual(phone):
     """Processo de clique e digitação manual (PyAutoGUI) com tentativas OTIMIZADO"""
     print(f"[*] Processando: {phone}")
     
-    for tentativa in range(1, 4): # Tenta até 3 vezes se falhar
+    for tentativa in range(1, 3): # Tenta até 2 vezes se falhar
         if tentativa > 1:
             print(f"[!] Tentativa {tentativa}... Recomeçando.")
             
-        # 1. Atualizar a página (F5)
+        # 1. Atualizar a página (F5) para limpar estado anterior
         pyautogui.press('f5')
-        time.sleep(3) # Tempo otimizado para o captcha carregar (ajuste se necessário)
+        time.sleep(4) # Espera carregar
         
         # 2. Clicar no campo de texto e limpar
         pyautogui.click(CAMPO_TEXTO)
@@ -54,29 +54,28 @@ def check_number_manual(phone):
         # 3. Digitar o número com +55 (Escreve instantaneamente)
         full_phone = f"+55{phone}"
         pyautogui.write(full_phone, interval=0.01)
-        
-        # 4. Pequena pausa para confirmar o captcha automático
         time.sleep(0.5)
         
-        # 5. Clicar em Check Number
+        # 4. Clicar em Check Number
         pyautogui.click(BOTAO_CHECK)
-        time.sleep(2) # Espera otimizada para o resultado aparecer
         
-        # 6. Capturar o resultado
-        pyautogui.click(POSICAO_RESULTADO, clicks=3)
-        pyautogui.hotkey('ctrl', 'c')
-        time.sleep(0.2)
-        
-        resultado_copiado = pyperclip.paste().lower()
-        print(f"[=] Leu: '{resultado_copiado.strip()}'")
-        
-        # Lógica de detecção
-        if "found" in resultado_copiado and "not" not in resultado_copiado:
-            return "✅"
-        elif "not found" in resultado_copiado:
-            return "❌"
-        
-        print(f"[-] Falha na tentativa {tentativa}.")
+        # 5. Capturar o resultado (Aguarda até 10 seg)
+        print("[.] Aguardando resultado...")
+        for _ in range(10):
+            time.sleep(1)
+            pyautogui.click(POSICAO_RESULTADO, clicks=3)
+            pyautogui.hotkey('ctrl', 'c')
+            time.sleep(0.2)
+            
+            resultado = pyperclip.paste().lower()
+            if "not found" in resultado:
+                print("[-] Resultado: Não tem WhatsApp.")
+                return "❌"
+            elif "found" in resultado:
+                print("[+] Resultado: TEM WhatsApp!")
+                return "✅"
+            
+        print(f"[-] Time-out na tentativa {tentativa}.")
 
     return None
 
@@ -143,6 +142,13 @@ def main():
 
                     # Executa a tarefa manual (F5 -> digita -> clica -> copia)
                     status_icon = check_number_manual(tel_para_consulta)
+                    
+                    # --- LÓGICA DE REDUNDÂNCIA PARA BRASIL (9º Dígito) ---
+                    # Se deu ❌ mas é um número de 11 dígitos, tenta a versão com 10 dígitos (sem o 9)
+                    if status_icon == "❌" and len(tel_para_consulta) == 11:
+                        print(f"[!] {tel_para_consulta} deu ❌. Tentando versão sem o 9...")
+                        tel_sem_9 = f"{tel_para_consulta[:2]}{tel_para_consulta[3:]}"
+                        status_icon = check_number_manual(tel_sem_9)
                     
                     if status_icon:
                         novos_tels_com_status.append(f"{tel_so_numeros} {status_icon}")

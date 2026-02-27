@@ -99,30 +99,45 @@ export async function POST(request: NextRequest) {
                     else dataNasc = dataStr
                 }
 
-                // Telefones - Pega e limpa
+                // Telefones - Pega, limpa e expande para lidar com o 9º dígito no Brasil
                 let listaTels: string[] = []
                 if (Array.isArray(telefonesRaw) && telefonesRaw.length > 0) {
-                    listaTels = telefonesRaw.map(t => {
+                    const rawNumbers = telefonesRaw.map(t => {
                         const val = t.telefone || t.Telefone || t.phone || t.numero || (typeof t === 'string' ? t : null)
                         return val ? String(val).replace(/\D/g, '') : null
                     }).filter(Boolean) as string[]
-                    listaTels = Array.from(new Set(listaTels))
+
+                    const expanded = new Set<string>()
+                    rawNumbers.forEach(t => {
+                        expanded.add(t)
+                        // Se for Brasil (DD 11-28 ou outros com 9 dígitos) e tiver 11 dígitos
+                        if (t.length === 11) {
+                            const ddd = t.substring(0, 2)
+                            const nove = t.substring(2, 3)
+                            const resto = t.substring(3)
+                            if (nove === '9') {
+                                // Adiciona versão sem o 9 (ID antigo do WhatsApp)
+                                expanded.add(`${ddd}${resto}`)
+                            }
+                        }
+                    })
+                    listaTels = Array.from(expanded)
                 }
 
                 // === VERIFICAR WHATSAPP VIA API EXTERNA ===
                 let telefoneComStatus = ''
                 if (listaTels.length > 0) {
-                    const delsChecked: string[] = []
+                    const delsFinal: string[] = []
+                    // Guardamos os resultados por número base (sem DDI) para facilitar o merge depois
+                    const resultsInterno: Record<string, boolean> = {}
 
                     // Se tiver Token do Checker configurado
                     if (apiWppToken && apiWppUrl) {
                         try {
-                            console.log(`[WA] Verificando ${listaTels.length} números via Whapi/Externo...`)
-
-                            // Adiciona DDI 55 se não tiver e monta lista para Whapi
                             const telsComDdi = listaTels.map(t => t.length <= 11 ? `55${t}` : t)
 
-                            // Whapi.Cloud usa /contacts/check com um array 'contacts'
+                            console.log(`[WA] Verificando ${telsComDdi.length} variações via Whapi...`)
+
                             const waRes = await fetch(apiWppUrl, {
                                 method: 'POST',
                                 headers: {
@@ -130,38 +145,49 @@ export async function POST(request: NextRequest) {
                                     'Authorization': `Bearer ${apiWppToken}`
                                 },
                                 body: JSON.stringify({
-                                    blocking: true, // Força a verificação imediata
+                                    blocking: true,
                                     contacts: telsComDdi
                                 })
                             })
 
                             const waData = await waRes.json()
+                            const contacts = waData.contacts || []
 
-                            // A Whapi retorna um array de contatos em waData.contacts
-                            // Cada item tem status: "existing" ou "non-existing"
-                            for (const tel of listaTels) {
-                                const fullTel = tel.length <= 11 ? `55${tel}` : tel
-
-                                // Procura o resultado deste número no retorno da API
-                                const match = waData.contacts?.find((c: any) => c.input === fullTel || c.wa_id?.startsWith(tel))
-
-                                const hasWa = match?.status === 'existing' ||
-                                    waData.data?.[fullTel] === 1 ||
-                                    waData.status === 'existing' ||
-                                    waData.success === true
-
-                                delsChecked.push(`${tel} ${hasWa ? '✅' : '❌'}`)
-                            }
+                            // Mapeia quais números tem WhatsApp
+                            listaTels.forEach(t => {
+                                const full = t.length <= 11 ? `55${t}` : t
+                                const match = contacts.find((c: any) =>
+                                    String(c.input).replace(/\D/g, '') === full ||
+                                    String(c.wa_id).split('@')[0] === full
+                                )
+                                resultsInterno[t] = match?.status === 'existing'
+                            })
                         } catch (waErr) {
                             console.error('[WA] Erro na integração externa:', waErr)
-                            listaTels.forEach(t => delsChecked.push(t))
                         }
-                    } else {
-                        // Sem checker, mantém lista pura
-                        listaTels.forEach(t => delsChecked.push(t))
                     }
 
-                    telefoneComStatus = delsChecked.join(', ')
+                    // Agora que temos os resultados das variações, remontamos a lista original do lead
+                    // mas marcamos ✅ se QUALQUER variação (com ou sem 9) deu certo.
+                    const telsLeadOriginal = Array.from(new Set(telefonesRaw.map((t: any) => {
+                        const val = t.telefone || t.Telefone || t.phone || t.numero || (typeof t === 'string' ? t : null)
+                        return val ? String(val).replace(/\D/g, '') : null
+                    }).filter(Boolean))) as string[]
+
+                    telsLeadOriginal.forEach(t => {
+                        let hasWa = resultsInterno[t] || false
+
+                        // Se não deu certo com o número original (11 dígitos), 
+                        // verifica se a versão sem o 9 (10 dígitos) deu certo
+                        if (!hasWa && t.length === 11) {
+                            const semNove = `${t.substring(0, 2)}${t.substring(3)}`
+                            if (resultsInterno[semNove]) hasWa = true
+                        }
+
+                        delsFinal.push(`${t} ${hasWa ? '✅' : '❌'}`)
+                    })
+
+                    telefoneComStatus = delsFinal.join(', ')
                 }
 
                 // Renda
