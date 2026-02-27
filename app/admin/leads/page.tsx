@@ -1,41 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Users, Search, Smartphone, Phone, AlertTriangle, Filter, Trash2, X, AlertCircle, RefreshCw, Shield, XCircle } from 'lucide-react'
+import { Users, Search, Smartphone, Phone, AlertTriangle, Filter, Trash2, X, AlertCircle, RefreshCw, Shield, XCircle, ArrowRight } from 'lucide-react'
 import { supabase, Cliente, Banco } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
 
 export default function LeadsPage() {
-    const renderTelefones = (telString: string) => {
-        if (!telString || telString === '—') return '—'
-
-        const parts = telString.split(',').map(p => p.trim())
-
-        return (
-            <div className="flex flex-wrap gap-2 max-w-[300px]">
-                {parts.map((p, idx) => {
-                    const hasWa = p.includes('✅')
-                    const hasFail = p.includes('❌')
-                    const numberOnly = p.replace(/[✅❌]/g, '').trim()
-
-                    return (
-                        <div key={idx} className="flex items-center gap-1.5 bg-white/[0.03] border border-white/[0.05] px-2 py-0.5 rounded-lg">
-                            <span className={`text-[11px] font-mono ${hasWa ? 'text-emerald-400' : hasFail ? 'text-rose-400' : 'text-gray-400'}`}>
-                                {numberOnly}
-                            </span>
-                            {hasWa && <Phone size={10} className="text-emerald-500 fill-emerald-500/20" />}
-                            {hasFail && <XCircle size={10} className="text-rose-500" />}
-                        </div>
-                    )
-                })}
-            </div>
-        )
-    }
-
     const { theme, selectedBankId, selectedBankName } = useBankTheme()
     const [clientes, setClientes] = useState<Cliente[]>([])
     const [bancos, setBancos] = useState<Banco[]>([])
-    const [filtroWhatsapp, setFiltroWhatsapp] = useState<string>('todos')
     const [filtroCheck, setFiltroCheck] = useState<string>('todos')
     const [busca, setBusca] = useState('')
     const [loading, setLoading] = useState(true)
@@ -52,7 +25,7 @@ export default function LeadsPage() {
     useEffect(() => {
         setPagina(1)
         carregarDados(1)
-    }, [filtroWhatsapp, filtroCheck, selectedBankId])
+    }, [filtroCheck, selectedBankId])
 
     useEffect(() => {
         carregarDados(pagina)
@@ -65,7 +38,6 @@ export default function LeadsPage() {
 
         let query = supabase.from('clientes').select('*, bancos(nome)', { count: 'exact' }).order('created_at', { ascending: false })
 
-        if (filtroWhatsapp !== 'todos') query = query.eq('status_whatsapp', filtroWhatsapp)
         if (filtroCheck === 'check') query = query.eq('wpp_checked', true)
         if (filtroCheck === 'pendente') query = query.eq('wpp_checked', false)
         if (selectedBankId) query = query.eq('banco_principal_id', selectedBankId)
@@ -75,7 +47,7 @@ export default function LeadsPage() {
         query = query.range(from, to)
 
         const { data, count } = await query
-        if (data) setClientes(data)
+        if (data) setClientes(data as any)
         if (count !== null) {
             setTotalRegistros(count)
             setTotalPaginas(Math.ceil(count / ITENS_POR_PAGINA))
@@ -85,24 +57,15 @@ export default function LeadsPage() {
 
     const handleApagarUm = async (id: string) => {
         if (!confirm('Deseja realmente apagar este lead?')) return
-
         const { error } = await supabase.from('clientes').delete().eq('id', id)
-        if (!error) {
-            setClientes(prev => prev.filter(c => c.id !== id))
-        }
+        if (!error) setClientes(prev => prev.filter(c => c.id !== id))
     }
 
     const handleApagarTudo = async () => {
         setDeletingAll(true)
-
-        let query = supabase.from('clientes').delete().neq('id', '00000000-0000-0000-0000-000000000000') // Deleta tudo
-
-        if (selectedBankId) {
-            query = query.eq('banco_principal_id', selectedBankId)
-        }
-
+        let query = supabase.from('clientes').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        if (selectedBankId) query = query.eq('banco_principal_id', selectedBankId)
         const { error } = await query
-
         if (!error) {
             setClientes([])
             setTotalRegistros(0)
@@ -132,215 +95,131 @@ export default function LeadsPage() {
                 }
                 carregarDados(pagina)
             }
-        } catch (err) {
-            console.error('Erro ao limpar checks:', err)
-        }
+        } catch (err) { console.error(err) }
         setClearingCheck(false)
     }
 
-    const statusLabel = (status: string, tel: string) => {
-        if (tel && (tel.includes('✅'))) return 'WhatsApp Encontrado'
-        if (tel && (tel.includes('❌'))) return 'Apenas Fixo / Inválido'
-        if (status === 'ativo') return 'WhatsApp Ativo'
-        if (status === 'fixo') return 'Telefone Fixo'
-        if (status === 'invalido') return 'Inválido'
-        return 'Não consultado'
-    }
-
-    const statusIcon = (status: string, tel: string) => {
-        const hasWa = tel && tel.includes('✅')
-        const hasFail = tel && tel.includes('❌')
-
-        if (hasWa) return <Phone size={14} className="text-emerald-500" />
-        if (hasFail) return <X size={14} className="text-rose-500" />
-        if (status === 'ativo') return <Phone size={14} className="text-emerald-500" />
-        if (status === 'invalido' || status === 'fixo') return <X size={14} className="text-rose-500" />
-        return < Smartphone size={14} className="text-gray-600" />
+    const renderTelefones = (telString: string) => {
+        if (!telString) return <span className="text-gray-700 italic text-xs">Sem telefone</span>
+        const parts = telString.split(',').map(p => p.trim())
+        return (
+            <div className="flex flex-wrap gap-1.5">
+                {parts.map((p, idx) => {
+                    const hasWa = p.includes('✅')
+                    const hasFail = p.includes('❌')
+                    const numberOnly = p.replace(/[✅❌]/g, '').trim()
+                    return (
+                        <div key={idx} className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[10px] font-bold ${hasWa ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                                hasFail ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
+                                    'bg-white/5 border-white/5 text-gray-500'
+                            }`}>
+                            {numberOnly}
+                            {hasWa && <Phone size={10} />}
+                            {hasFail && <X size={10} />}
+                        </div>
+                    )
+                })}
+            </div>
+        )
     }
 
     const clientesFiltrados = clientes.filter(c => {
         if (!busca) return true
         const b = busca.toLowerCase()
-        return (
-            (c.cpf && c.cpf.includes(b)) ||
-            (c.nome && c.nome.toLowerCase().includes(b)) ||
-            (c.telefone && c.telefone.includes(b))
-        )
+        return (c.cpf?.includes(b)) || (c.nome?.toLowerCase().includes(b)) || (c.telefone?.includes(b))
     })
 
     return (
-        <div className="p-6 md:p-10 animate-fade-in max-w-[1600px] mx-auto">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 animate-fade-in-up">
+        <div className="p-6 lg:p-10 animate-fade-in max-w-[1600px] mx-auto">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
                 <div>
-                    <h1 className="text-2xl font-bold text-white tracking-tight">Leads</h1>
-                    <p className="text-gray-600 text-sm mt-1">Visualize e gerencie seus leads importados.</p>
+                    <h1 className="text-3xl font-black text-white italic uppercase tracking-tighter flex items-center gap-3">
+                        Leads
+                        {selectedBankName && <span className="text-xs not-italic font-bold px-3 py-1 rounded-full bg-white/5 text-gray-400 border border-white/5">{selectedBankName}</span>}
+                    </h1>
+                    <p className="text-gray-600 text-sm mt-1 font-medium italic">Gerenciamento centralizado de base de dados</p>
                 </div>
-
-                <div className="flex items-center gap-2">
-                    {clientes.length > 0 && (
-                        <button
-                            onClick={handleLimparChecks}
-                            disabled={clearingCheck}
-                            className="flex items-center gap-2 px-4 py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-500 rounded-xl transition-all text-sm font-semibold border border-purple-500/20 disabled:opacity-50"
-                        >
-                            <RefreshCw size={16} className={clearingCheck ? 'animate-spin' : ''} />
-                            Limpar Checks
-                        </button>
-                    )}
-
-                    {clientes.length > 0 && (
-                        <button
-                            onClick={() => setConfirmDeleteAll(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl transition-all text-sm font-semibold border border-red-500/20"
-                        >
-                            <Trash2 size={16} />
-                            Apagar Tudo {selectedBankId ? `(${selectedBankName})` : ''}
-                        </button>
-                    )}
+                <div className="flex items-center gap-3">
+                    <button onClick={handleLimparChecks} disabled={clearingCheck} className="px-5 py-2.5 glass rounded-xl text-xs font-black uppercase tracking-widest text-purple-400 hover:bg-purple-500/10 transition-all border-purple-500/10 flex items-center gap-2">
+                        <RefreshCw size={14} className={clearingCheck ? 'animate-spin' : ''} /> Limpar Checks
+                    </button>
+                    <button onClick={() => setConfirmDeleteAll(true)} className="px-5 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 rounded-xl text-xs font-black uppercase tracking-widest border border-rose-500/20 flex items-center gap-2 transition-all">
+                        <Trash2 size={14} /> Apagar Tudo
+                    </button>
                 </div>
             </div>
 
-            {/* Modal de Confirmação para Apagar Tudo */}
-            {confirmDeleteAll && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-                    <div className="glass-strong rounded-3xl p-8 max-w-md w-full border border-white/10 animate-scale-in shadow-2xl">
-                        <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-6">
-                            <AlertCircle size={32} className="text-red-500" />
-                        </div>
-                        <h2 className="text-xl font-bold text-white text-center mb-2">Tem certeza absoluta?</h2>
-                        <p className="text-gray-400 text-center text-sm mb-8 leading-relaxed">
-                            Você está prestes a apagar <b>TODOS</b> os leads
-                            {selectedBankId ? <> do banco <b>{selectedBankName}</b></> : ' do sistema'}.
-                            Esta ação não pode ser desfeita.
-                        </p>
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setConfirmDeleteAll(false)}
-                                className="flex-1 px-6 py-3.5 glass rounded-xl text-white text-sm font-bold hover:bg-white/5 transition-all"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={handleApagarTudo}
-                                disabled={deletingAll}
-                                className="flex-1 px-6 py-3.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-red-600/20 transition-all disabled:opacity-50"
-                            >
-                                {deletingAll ? 'Apagando...' : 'Sim, Apagar'}
-                            </button>
-                        </div>
-                    </div>
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-8">
+                <div className="lg:col-span-2 relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600" size={18} />
+                    <input type="text" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Pesquisar por nome, CPF ou telefone..." className="w-full pl-12 pr-4 py-4 glass rounded-2xl text-white placeholder-gray-700 font-medium focus:outline-none focus:ring-2 ring-purple-500/20 transition-all" />
                 </div>
-            )}
-
-            <div className="flex flex-col lg:flex-row gap-3 mb-6 animate-fade-in-up stagger-1">
-                <div className="relative flex-1">
-                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-600" size={16} />
-                    <input
-                        type="text"
-                        value={busca}
-                        onChange={(e) => setBusca(e.target.value)}
-                        placeholder="Buscar por CPF, nome ou telefone..."
-                        className="w-full pl-10 pr-4 py-3 glass rounded-xl text-white placeholder-gray-600 text-sm focus:outline-none focus:ring-2 transition-all"
-                        style={{ '--tw-ring-color': `rgba(${theme.primaryRGB}, 0.4)` } as any}
-                    />
-                </div>
-                <div className="flex items-center gap-2">
-                    <Filter size={14} className="text-gray-600" />
-                    <select
-                        value={filtroWhatsapp}
-                        onChange={(e) => setFiltroWhatsapp(e.target.value)}
-                        className="glass rounded-xl px-4 py-3 text-white text-sm focus:outline-none appearance-none cursor-pointer"
-                    >
-                        <option value="todos" className="bg-[#111]">Todos Status</option>
-                        <option value="ativo" className="bg-[#111]">WhatsApp Ativo</option>
-                        <option value="fixo" className="bg-[#111]">Telefone Fixo</option>
-                        <option value="invalido" className="bg-[#111]">Inválido</option>
-                    </select>
-
-                    <select
-                        value={filtroCheck}
-                        onChange={(e) => setFiltroCheck(e.target.value)}
-                        className="glass rounded-xl px-4 py-3 text-white text-sm focus:outline-none appearance-none cursor-pointer"
-                    >
-                        <option value="todos" className="bg-[#111]">Todos Check</option>
-                        <option value="check" className="bg-[#111]">Somente Checkados</option>
-                        <option value="pendente" className="bg-[#111]">Somente Pendentes</option>
-                    </select>
+                <select value={filtroCheck} onChange={(e) => setFiltroCheck(e.target.value)} className="glass rounded-2xl px-5 py-4 text-white font-bold text-sm focus:outline-none appearance-none cursor-pointer border-white/5">
+                    <option value="todos" className="bg-black">Todos os Leads</option>
+                    <option value="check" className="bg-black">Apenas Checkados</option>
+                    <option value="pendente" className="bg-black">Apenas Pendentes</option>
+                </select>
+                <div className="glass rounded-2xl px-6 py-4 flex items-center justify-between border-white/5">
+                    <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Encontrados</span>
+                    <span className="text-xl font-black text-white font-mono">{totalRegistros}</span>
                 </div>
             </div>
 
-            <div className="flex items-center gap-2 mb-4">
-                <Users size={14} className="text-gray-600" />
-                <span className="text-xs text-gray-500 font-medium">{clientesFiltrados.length} lead(s) encontrado(s)</span>
-            </div>
-
-            <div className="glass rounded-2xl overflow-hidden animate-fade-in-up stagger-2">
+            <div className="glass rounded-[2rem] border border-white/5 overflow-hidden shadow-2xl">
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead>
-                            <tr className="border-b border-white/[0.04]">
-                                {['CPF', 'Nome', 'Banco', 'BIN', 'Validade', 'Telefone', 'Status', 'Check', 'Ações'].map(h => (
-                                    <th key={h} className="text-left px-5 py-3.5 text-[10px] font-bold text-gray-600 uppercase tracking-wider">{h}</th>
+                            <tr className="bg-white/[0.02] border-b border-white/5">
+                                {['Identificação', 'Contatos', 'Informações Financeiras', 'Status', 'Ações'].map(h => (
+                                    <th key={h} className="text-left px-8 py-6 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">{h}</th>
                                 ))}
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-white/[0.02]">
                             {loading ? (
-                                <tr><td colSpan={9} className="text-center py-12 text-gray-600 text-sm">Carregando...</td></tr>
+                                <tr><td colSpan={5} className="py-20 text-center text-gray-700 italic">Carregando base de dados...</td></tr>
                             ) : clientesFiltrados.length === 0 ? (
-                                <tr><td colSpan={9} className="text-center py-12 text-gray-600 text-sm">Nenhum lead encontrado.</td></tr>
+                                <tr><td colSpan={5} className="py-20 text-center text-gray-700 italic">Nenhum registro encontrado nesta visualização.</td></tr>
                             ) : (
                                 clientesFiltrados.map((c, i) => (
-                                    <tr
-                                        key={c.id}
-                                        className="border-b border-white/[0.02] hover:bg-white/[0.02] transition-colors animate-fade-in"
-                                        style={{ animationDelay: `${i * 0.02}s` }}
-                                    >
-                                        <td className="px-5 py-3.5 text-sm text-white font-mono">{c.cpf}</td>
-                                        <td className="px-5 py-3.5 text-sm">
-                                            <div className="flex flex-col">
-                                                <span className="text-gray-300 font-medium">{c.nome || '—'}</span>
-                                                <span className="text-[10px] text-gray-600">
-                                                    {c.renda ? `R$ ${c.renda.toLocaleString()}` : ''}
-                                                    {c.score ? ` • Score: ${c.score}` : ''}
-                                                </span>
+                                    <tr key={c.id} className="hover:bg-white/[0.01] transition-colors group">
+                                        <td className="px-8 py-6">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center text-gray-400 group-hover:scale-110 transition-transform">{i + 1 + (pagina - 1) * ITENS_POR_PAGINA}</div>
+                                                <div>
+                                                    <p className="text-sm font-black text-white uppercase tracking-tight">{c.nome || 'NOME NÃO INFORMADO'}</p>
+                                                    <p className="text-[11px] font-mono text-gray-600 mt-0.5">{c.cpf}</p>
+                                                </div>
                                             </div>
                                         </td>
-                                        <td className="px-5 py-3.5 text-sm text-gray-400">{(c.bancos as any)?.nome || '—'}</td>
-                                        <td className="px-5 py-3.5 text-sm">
-                                            <span className={`font-mono ${c.bin_cartao ? 'text-purple-400' : 'text-gray-700'}`}>
-                                                {c.bin_cartao || 'Sem info'}
-                                            </span>
-                                        </td>
-                                        <td className="px-5 py-3.5 text-sm">
-                                            <span className={`${c.validade_cartao ? 'text-cyan-400' : 'text-gray-700'}`}>
-                                                {c.validade_cartao || 'Sem info'}
-                                            </span>
-                                        </td>
-                                        <td className="px-5 py-3.5 text-sm">{renderTelefones(c.telefone || '')}</td>
-                                        <td className="px-5 py-3.5">
-                                            <div className="flex items-center gap-1.5">
-                                                {statusIcon(c.status_whatsapp, c.telefone)}
-                                                <span className="text-xs text-gray-400">{statusLabel(c.status_whatsapp, c.telefone)}</span>
+                                        <td className="px-8 py-6">{renderTelefones(c.telefone || '')}</td>
+                                        <td className="px-8 py-6">
+                                            <div className="flex items-center gap-6">
+                                                <div>
+                                                    <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1">Renda Estimada</p>
+                                                    <p className="text-xs font-bold text-emerald-400 font-mono">{c.renda ? `R$ ${c.renda.toLocaleString()}` : '—'}</p>
+                                                </div>
+                                                <div className="w-[1px] h-6 bg-white/5" />
+                                                <div>
+                                                    <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1">Score Serasa</p>
+                                                    <p className="text-xs font-bold text-purple-400 font-mono">{c.score || '—'}</p>
+                                                </div>
                                             </div>
                                         </td>
-                                        <td className="px-5 py-3.5">
+                                        <td className="px-8 py-6">
                                             {c.wpp_checked ? (
-                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-500 text-[10px] font-black border border-emerald-500/20">
-                                                    <Shield size={10} /> CHECK
+                                                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-500 text-[10px] font-black border border-emerald-500/20 italic">
+                                                    <Shield size={12} fill="currentColor" className="opacity-20" /> VERIFICADO
                                                 </span>
                                             ) : (
-                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white/5 text-gray-600 text-[10px] font-black border border-white/5">
-                                                    <RefreshCw size={10} /> PENDENTE
+                                                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 text-gray-600 text-[10px] font-black border border-white/5 italic">
+                                                    <RefreshCw size={12} /> AGUARDANDO
                                                 </span>
                                             )}
                                         </td>
-                                        <td className="px-5 py-3.5">
-                                            <button
-                                                onClick={() => handleApagarUm(c.id)}
-                                                className="p-2 text-gray-600 hover:text-red-500 transition-colors"
-                                            >
-                                                <Trash2 size={16} />
+                                        <td className="px-8 py-6">
+                                            <button onClick={() => handleApagarUm(c.id)} className="p-3 text-gray-700 hover:text-rose-500 hover:bg-rose-500/10 rounded-2xl transition-all">
+                                                <Trash2 size={18} />
                                             </button>
                                         </td>
                                     </tr>
@@ -351,36 +230,29 @@ export default function LeadsPage() {
                 </div>
             </div>
 
-            {/* Paginação */}
-            {
-                !loading && totalPaginas > 1 && (
-                    <div className="flex flex-col md:flex-row items-center justify-between gap-6 mt-8 pb-10">
-                        <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">
-                            Página <span className="text-white">{pagina}</span> de <span className="text-white">{totalPaginas}</span>
-                            <span className="mx-3 opacity-20">|</span>
-                            Total de <span className="text-white">{totalRegistros}</span> leads
-                        </p>
+            {!loading && totalPaginas > 1 && (
+                <div className="flex flex-col md:flex-row items-center justify-between gap-6 mt-10 pb-10">
+                    <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Mostrando página {pagina} de {totalPaginas}</p>
+                    <div className="flex items-center gap-3">
+                        <button onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={pagina === 1} className="px-8 py-4 glass rounded-[2rem] text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 hover:text-white disabled:opacity-20 transition-all border-white/5">Anterior</button>
+                        <button onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} disabled={pagina === totalPaginas} className="px-8 py-4 glass rounded-[2rem] text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 hover:text-white disabled:opacity-20 transition-all border-white/5 group">Próxima <ArrowRight size={14} className="inline ml-2 group-hover:translate-x-1 transition-transform" /></button>
+                    </div>
+                </div>
+            )}
 
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => setPagina(p => Math.max(1, p - 1))}
-                                disabled={pagina === 1}
-                                className="glass px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all border-white/5"
-                            >
-                                Anterior
-                            </button>
-
-                            <button
-                                onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
-                                disabled={pagina === totalPaginas}
-                                className="glass px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all border-white/5"
-                            >
-                                Próxima
-                            </button>
+            {confirmDeleteAll && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md">
+                    <div className="glass rounded-[3rem] p-12 max-w-lg w-full border border-white/10 shadow-2xl relative overflow-hidden">
+                        <div className="absolute -top-24 -right-24 w-64 h-64 bg-rose-500/10 blurred-circle" />
+                        <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">Atenção Crítica</h2>
+                        <p className="text-gray-400 text-sm mb-10 leading-relaxed font-medium">Você está prestes a apagar <b>TODOS</b> os registros desta base de dados. Esta operação é irreversível e afetará todos os processos em andamento.</p>
+                        <div className="flex gap-4">
+                            <button onClick={() => setConfirmDeleteAll(false)} className="flex-1 px-8 py-5 glass rounded-2xl text-[10px] font-black uppercase tracking-widest text-white hover:bg-white/5 transition-all">Cancelar</button>
+                            <button onClick={handleApagarTudo} disabled={deletingAll} className="flex-1 px-8 py-5 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50">{deletingAll ? 'Processando...' : 'Excluir Absolutamente'}</button>
                         </div>
                     </div>
-                )
-            }
-        </div >
+                </div>
+            )}
+        </div>
     )
 }
