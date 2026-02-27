@@ -222,20 +222,21 @@ export default function ConfigPage() {
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest pl-1">Token da API (Checker)</label>
-                            <div className="relative group/input">
-                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-700 group-focus-within/input:text-white transition-colors">
+                            <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest pl-1">Tokens da API (Vários tokens separados por vírgula)</label>
+                            <div className="relative group/input text-area-wpp">
+                                <div className="absolute top-4 left-4 pointer-events-none text-gray-700 group-focus-within/input:text-white transition-colors">
                                     <Key size={16} />
                                 </div>
-                                <input
-                                    type="password"
+                                <textarea
                                     value={apiWppToken}
                                     onChange={(e) => setApiWppToken(e.target.value)}
-                                    placeholder="Insira seu token do verificador..."
-                                    className="w-full bg-[#080808] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white placeholder-gray-800 text-sm focus:outline-none focus:ring-2 transition-all font-mono"
+                                    placeholder="token1, token2, token3..."
+                                    rows={3}
+                                    className="w-full bg-[#080808] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white placeholder-gray-800 text-sm focus:outline-none focus:ring-2 transition-all font-mono resize-none"
                                     style={{ '--tw-ring-color': '#25D36633' } as any}
                                 />
                             </div>
+                            <p className="text-[9px] text-gray-700 italic pl-1 lowercase">Insira vários tokens para rotação automática (evita limite de 1k)</p>
                         </div>
                     </div>
                 </div>

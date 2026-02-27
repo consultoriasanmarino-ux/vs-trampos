@@ -131,47 +131,61 @@ export async function POST(request: NextRequest) {
                     // Guardamos os resultados por número base (sem DDI) para facilitar o merge depois
                     const resultsInterno: Record<string, boolean> = {}
 
-                    // Se tiver Token do Checker configurado
+                    // Se tiver Tokens do Checker configurados (rotação)
                     if (apiWppToken && apiWppUrl) {
-                        try {
-                            const telsComDdi = listaTels.map(t => t.length <= 11 ? `55${t}` : t)
+                        const tokens = String(apiWppToken).split(',').map(t => t.trim()).filter(Boolean)
 
-                            console.log(`[WA] Verificando ${telsComDdi.length} variações via Whapi...`)
+                        // Tenta cada token até um funcionar
+                        for (let tokenIdx = 0; tokenIdx < tokens.length; tokenIdx++) {
+                            const currentToken = tokens[tokenIdx]
+                            try {
+                                const telsComDdi = listaTels.map(t => t.length <= 11 ? `55${t}` : t)
 
-                            const waRes = await fetch(apiWppUrl, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'Authorization': `Bearer ${apiWppToken}`
-                                },
-                                body: JSON.stringify({
-                                    blocking: true,
-                                    contacts: telsComDdi
-                                })
-                            })
+                                console.log(`[WA] Verificando via Whapi (Token ${tokenIdx + 1}/${tokens.length})...`)
 
-                            const waData = await waRes.json()
-                            const contacts = waData.contacts || []
-
-                            console.log(`[WA] API retornou ${contacts.length} contatos conferidos.`)
-
-                            // Mapeia quais números tem WhatsApp
-                            listaTels.forEach(t => {
-                                const full = t.length <= 11 ? `55${t}` : t
-                                const match = contacts.find((c: any) => {
-                                    const inputClean = String(c.input || '').replace(/\D/g, '')
-                                    // Pega o ID antes do @ e limpa
-                                    const waIdClean = String(c.wa_id || '').split('@')[0].replace(/\D/g, '')
-                                    return inputClean === full || waIdClean === full
+                                const waRes = await fetch(apiWppUrl, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Authorization': `Bearer ${currentToken}`
+                                    },
+                                    body: JSON.stringify({
+                                        blocking: true,
+                                        contacts: telsComDdi
+                                    })
                                 })
 
-                                // Rigoroso mas flexível: aceita 'existing' ou se tiver wa_id e não for 'non-existing'
-                                const hasWa = match?.status?.includes('exist') || (match?.wa_id && match?.status !== 'non-existing')
-                                resultsInterno[t] = !!hasWa
-                                if (hasWa) console.log(`[WA] Confirmado: ${t} (Status: ${match?.status})`)
-                            })
-                        } catch (waErr) {
-                            console.error('[WA] Erro na integração externa:', waErr)
+                                // Se bater limite (403) ou erro de auth (401), tenta o próximo token
+                                if (waRes.status === 403 || waRes.status === 401 || waRes.status === 429) {
+                                    console.warn(`[WA] Token ${tokenIdx + 1} falhou (Status ${waRes.status}). Tentando próximo...`)
+                                    continue
+                                }
+
+                                const waData = await waRes.json()
+                                const contacts = waData.contacts || []
+
+                                console.log(`[WA] API retornou ${contacts.length} contatos.`)
+
+                                // Mapeia quais números tem WhatsApp
+                                listaTels.forEach(t => {
+                                    const full = t.length <= 11 ? `55${t}` : t
+                                    const match = contacts.find((c: any) => {
+                                        const inputClean = String(c.input || '').replace(/\D/g, '')
+                                        const waIdClean = String(c.wa_id || '').split('@')[0].replace(/\D/g, '')
+                                        return inputClean === full || waIdClean === full
+                                    })
+
+                                    const hasWa = match?.status?.includes('exist') || (match?.wa_id && match?.status !== 'non-existing')
+                                    resultsInterno[t] = !!hasWa
+                                    if (hasWa) console.log(`[WA] Confirmado: ${t} (Status: ${match?.status})`)
+                                })
+
+                                // Se chegou aqui com sucesso, não precisa testar outros tokens para este lote
+                                break
+                            } catch (waErr) {
+                                console.error(`[WA] Erro com token ${tokenIdx + 1}:`, waErr)
+                                // Continua tentando se houver mais tokens
+                            }
                         }
                     }
 
