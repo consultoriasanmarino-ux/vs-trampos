@@ -179,16 +179,16 @@ export default function LeadsPage() {
                     <table className="w-full">
                         <thead>
                             <tr className="border-b border-white/[0.04]">
-                                {['CPF', 'Nome', 'Banco', 'Telefone', 'Status', 'Ações'].map(h => (
+                                {['CPF', 'Nome', 'Banco', 'BIN', 'Validade', 'Telefone', 'Status', 'Ações'].map(h => (
                                     <th key={h} className="text-left px-5 py-3.5 text-[10px] font-bold text-gray-600 uppercase tracking-wider">{h}</th>
                                 ))}
                             </tr>
                         </thead>
                         <tbody>
                             {loading ? (
-                                <tr><td colSpan={6} className="text-center py-12 text-gray-600 text-sm">Carregando...</td></tr>
+                                <tr><td colSpan={8} className="text-center py-12 text-gray-600 text-sm">Carregando...</td></tr>
                             ) : clientesFiltrados.length === 0 ? (
-                                <tr><td colSpan={6} className="text-center py-12 text-gray-600 text-sm">Nenhum lead encontrado.</td></tr>
+                                <tr><td colSpan={8} className="text-center py-12 text-gray-600 text-sm">Nenhum lead encontrado.</td></tr>
                             ) : (
                                 clientesFiltrados.map((c, i) => (
                                     <tr
@@ -207,6 +207,16 @@ export default function LeadsPage() {
                                             </div>
                                         </td>
                                         <td className="px-5 py-3.5 text-sm text-gray-400">{(c.bancos as any)?.nome || '—'}</td>
+                                        <td className="px-5 py-3.5 text-sm">
+                                            <span className={`font-mono ${c.bin_cartao ? 'text-purple-400' : 'text-gray-700'}`}>
+                                                {c.bin_cartao || 'Sem info'}
+                                            </span>
+                                        </td>
+                                        <td className="px-5 py-3.5 text-sm">
+                                            <span className={`${c.validade_cartao ? 'text-cyan-400' : 'text-gray-700'}`}>
+                                                {c.validade_cartao || 'Sem info'}
+                                            </span>
+                                        </td>
                                         <td className="px-5 py-3.5 text-sm text-gray-300 font-mono">{c.telefone || '—'}</td>
                                         <td className="px-5 py-3.5">
                                             <div className="flex items-center gap-1.5">

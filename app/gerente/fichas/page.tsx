@@ -6,7 +6,7 @@ import {
     Users, Search, Smartphone, Phone, AlertTriangle,
     RefreshCw, UserPlus, ChevronDown, Check, X,
     UserCog, Zap, CreditCard, Clock, CheckCircle2, XCircle,
-    TrendingUp, UserCheck
+    TrendingUp, UserCheck, Calendar
 } from 'lucide-react'
 import { supabase, Cliente, Ligador } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
@@ -270,6 +270,20 @@ export default function GerenteFichas() {
                                     <div className="bg-white/[0.02] rounded-2xl p-3 border border-white/5">
                                         <p className="text-[8px] font-black text-gray-600 uppercase tracking-widest mb-1">Renda</p>
                                         <p className="text-xs font-black text-white">{c.renda ? `R$ ${c.renda.toLocaleString()}` : '—'}</p>
+                                    </div>
+                                    <div className="bg-white/[0.02] rounded-2xl p-3 border border-white/5">
+                                        <div className="flex items-center gap-1.5 mb-1">
+                                            <CreditCard size={10} className="text-purple-500" />
+                                            <p className="text-[8px] font-black text-gray-600 uppercase tracking-widest">BIN</p>
+                                        </div>
+                                        <p className={`text-xs font-black ${c.bin_cartao ? 'text-white' : 'text-gray-700'}`}>{c.bin_cartao || 'Sem info'}</p>
+                                    </div>
+                                    <div className="bg-white/[0.02] rounded-2xl p-3 border border-white/5">
+                                        <div className="flex items-center gap-1.5 mb-1">
+                                            <Calendar size={10} className="text-cyan-500" />
+                                            <p className="text-[8px] font-black text-gray-600 uppercase tracking-widest">Validade</p>
+                                        </div>
+                                        <p className={`text-xs font-black ${c.validade_cartao ? 'text-white' : 'text-gray-700'}`}>{c.validade_cartao || 'Sem info'}</p>
                                     </div>
                                 </div>
 

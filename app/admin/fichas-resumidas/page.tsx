@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import {
     Users, Search, Smartphone, Phone, AlertTriangle,
     RefreshCw, Filter, TrendingUp, Calendar, CheckCircle2, XCircle,
-    Eye, MoreHorizontal, LayoutList, ChevronLeft, ChevronRight, DollarSign, Star
+    Eye, MoreHorizontal, LayoutList, ChevronLeft, ChevronRight, DollarSign, Star, CreditCard
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
@@ -208,13 +208,21 @@ export default function FichasResumidasPage() {
                                 </td>
                                 <td className="px-6 py-5">
                                     <div className="flex flex-col gap-1 items-center">
-                                        <div className="flex items-center gap-2 group/tip">
+                                        <div className="flex items-center gap-2">
                                             <Star size={10} className="text-amber-500" />
                                             <span className="text-[10px] font-black text-gray-400 uppercase">Score: <span className="text-white">{f.score || '—'}</span></span>
                                         </div>
-                                        <div className="flex items-center gap-2 group/tip">
+                                        <div className="flex items-center gap-2">
                                             <DollarSign size={10} className="text-emerald-500" />
                                             <span className="text-[10px] font-black text-gray-400 uppercase">Renda: <span className="text-white">{formatCurrency(f.renda)}</span></span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <CreditCard size={10} className="text-purple-500" />
+                                            <span className="text-[10px] font-black text-gray-400 uppercase">BIN: <span className={f.bin_cartao ? 'text-white' : 'text-gray-700'}>{f.bin_cartao || 'Sem info'}</span></span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Calendar size={10} className="text-cyan-500" />
+                                            <span className="text-[10px] font-black text-gray-400 uppercase">Val: <span className={f.validade_cartao ? 'text-white' : 'text-gray-700'}>{f.validade_cartao || 'Sem info'}</span></span>
                                         </div>
                                     </div>
                                 </td>

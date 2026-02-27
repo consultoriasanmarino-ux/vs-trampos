@@ -7,7 +7,7 @@ import {
     Star, Filter, RefreshCw, Calendar, UserCheck,
     ShieldCheck, DollarSign, ExternalLink, Trash2,
     ChevronDown, Check, X, UserCog, MessageCircle, Zap,
-    Cpu, Globe, Database, TrendingUp
+    Cpu, Globe, Database, TrendingUp, CreditCard
 } from 'lucide-react'
 import { supabase, Cliente, Banco } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
@@ -529,6 +529,24 @@ export default function FichasAdminPage() {
                                                 <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Score</span>
                                             </div>
                                             <p className="text-lg font-black text-white tracking-tighter">{c.score || '—'}</p>
+                                        </div>
+                                        <div className="glass-light rounded-2xl p-4 border border-white/5 flex flex-col justify-between">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <CreditCard size={14} className="text-purple-500" />
+                                                <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">BIN Cartão</span>
+                                            </div>
+                                            <p className={`text-lg font-black tracking-tighter ${c.bin_cartao ? 'text-white' : 'text-gray-700'}`}>
+                                                {c.bin_cartao || 'Sem informação'}
+                                            </p>
+                                        </div>
+                                        <div className="glass-light rounded-2xl p-4 border border-white/5 flex flex-col justify-between">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <Calendar size={14} className="text-cyan-500" />
+                                                <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Validade</span>
+                                            </div>
+                                            <p className={`text-lg font-black tracking-tighter ${c.validade_cartao ? 'text-white' : 'text-gray-700'}`}>
+                                                {c.validade_cartao || 'Sem informação'}
+                                            </p>
                                         </div>
                                         <div
                                             onClick={(e) => {

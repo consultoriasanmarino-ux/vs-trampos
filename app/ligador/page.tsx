@@ -429,7 +429,7 @@ export default function LigadorPage() {
                                 {statusBadge(c.status_whatsapp, c.telefone)}
                             </div>
 
-                            {/* Info Grid - 2x2 */}
+                            {/* Info Grid - 3x2 */}
                             <div className="grid grid-cols-2 gap-3 mb-6">
                                 <div className="glass-light rounded-2xl p-3 border border-white/[0.03]">
                                     <div className="flex items-center gap-2 mb-1.5">
@@ -446,6 +446,24 @@ export default function LigadorPage() {
                                         <span className="text-[9px] font-bold text-gray-600 uppercase tracking-wider">Score</span>
                                     </div>
                                     <p className="text-sm font-bold text-white tracking-tight">{c.score || '—'}</p>
+                                </div>
+                                <div className="glass-light rounded-2xl p-3 border border-white/[0.03]">
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                        <CreditCard size={12} className="text-purple-500" />
+                                        <span className="text-[9px] font-bold text-gray-600 uppercase tracking-wider">BIN Cartão</span>
+                                    </div>
+                                    <p className={`text-sm font-bold tracking-tight ${c.bin_cartao ? 'text-white' : 'text-gray-700'}`}>
+                                        {c.bin_cartao || 'Sem informação'}
+                                    </p>
+                                </div>
+                                <div className="glass-light rounded-2xl p-3 border border-white/[0.03]">
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                        <Calendar size={12} className="text-cyan-500" />
+                                        <span className="text-[9px] font-bold text-gray-600 uppercase tracking-wider">Validade</span>
+                                    </div>
+                                    <p className={`text-sm font-bold tracking-tight ${c.validade_cartao ? 'text-white' : 'text-gray-700'}`}>
+                                        {c.validade_cartao || 'Sem informação'}
+                                    </p>
                                 </div>
                                 <div className="glass-light rounded-2xl p-3 border border-white/[0.03]">
                                     <div className="flex items-center gap-2 mb-1.5">

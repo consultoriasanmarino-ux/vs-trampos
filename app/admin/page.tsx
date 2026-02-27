@@ -17,6 +17,7 @@ import {
     Cpu,
     Globe,
     Trash2,
+    CreditCard,
 } from 'lucide-react'
 import { supabase, Banco } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
@@ -27,10 +28,13 @@ export default function AdminDashboard() {
     const [bancos, setBancos] = useState<Banco[]>([])
     const [fileCpf, setFileCpf] = useState<File | null>(null)
     const [fileEnriquecer, setFileEnriquecer] = useState<File | null>(null)
+    const [fileExtracao, setFileExtracao] = useState<File | null>(null)
     const [loadingCpf, setLoadingCpf] = useState(false)
     const [loadingEnriquecer, setLoadingEnriquecer] = useState(false)
+    const [loadingExtracao, setLoadingExtracao] = useState(false)
     const [statusCpf, setStatusCpf] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
     const [statusEnriquecer, setStatusEnriquecer] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+    const [statusExtracao, setStatusExtracao] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
     const [totalClientes, setTotalClientes] = useState(0)
     const [totalWhatsapp, setTotalWhatsapp] = useState(0)
@@ -114,6 +118,35 @@ export default function AdminDashboard() {
             setStatusCpf({ type: 'error', message: 'Erro de conexão.' })
         } finally {
             setLoadingCpf(false)
+        }
+    }
+
+    const handleUploadExtracao = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!fileExtracao || !selectedBankId) return
+
+        setLoadingExtracao(true)
+        setStatusExtracao(null)
+
+        const formData = new FormData()
+        formData.append('file', fileExtracao)
+        formData.append('banco_id', selectedBankId)
+
+        try {
+            const res = await fetch('/api/import-extracao', { method: 'POST', body: formData })
+            const data = await res.json()
+
+            if (res.ok) {
+                setStatusExtracao({ type: 'success', message: data.message })
+                setFileExtracao(null)
+                carregarStats()
+            } else {
+                setStatusExtracao({ type: 'error', message: data.error })
+            }
+        } catch {
+            setStatusExtracao({ type: 'error', message: 'Erro de conexão.' })
+        } finally {
+            setLoadingExtracao(false)
         }
     }
 
@@ -290,7 +323,7 @@ export default function AdminDashboard() {
                 <StatCard icon={<Database size={20} />} label="Bancos" value={totalBancos} theme={theme} delay="stagger-5" accent="blue" />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className={`glass rounded-2xl p-6 card-hover animate-fade-in-up stagger-2`}>
                     <div className="flex items-center gap-3 mb-6">
                         <div className="p-2.5 rounded-xl transition-all duration-500" style={{ background: `rgba(${theme.primaryRGB}, 0.1)` }}>
@@ -317,6 +350,40 @@ export default function AdminDashboard() {
                         <button type="submit" disabled={loadingCpf || !fileCpf || !selectedBankId} className="w-full text-white font-semibold py-3.5 rounded-xl active:scale-[0.98] transition-all disabled:opacity-30 disabled:cursor-not-allowed text-sm relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary}cc)`, boxShadow: `0 4px 20px rgba(${theme.primaryRGB}, 0.3)` }}>
                             <div className="absolute inset-0 animate-shimmer" />
                             <span className="relative">{loadingCpf ? 'Processando...' : 'Importar CPFs'}</span>
+                        </button>
+                    </form>
+                </div>
+
+                {/* Card Importar Extração */}
+                <div className={`glass rounded-2xl p-6 card-hover animate-fade-in-up stagger-2 relative overflow-hidden`}>
+                    <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
+                        <CreditCard size={80} />
+                    </div>
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="p-2.5 rounded-xl transition-all duration-500" style={{ background: 'rgba(168, 85, 247, 0.1)' }}>
+                            <CreditCard size={20} className="text-purple-400" />
+                        </div>
+                        <div>
+                            <h2 className="text-base font-semibold text-white">Importar Extração</h2>
+                            <p className="text-xs text-gray-600">BIN • Validade • Nome • CPF</p>
+                        </div>
+                    </div>
+                    <form onSubmit={handleUploadExtracao} className="space-y-4">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Arquivo log_extracao.txt</label>
+                            <div className="border border-dashed rounded-2xl p-8 text-center transition-all duration-300 cursor-pointer relative group" style={{ borderColor: 'rgba(168, 85, 247, 0.15)' }}>
+                                <input type="file" accept=".txt" onChange={(e) => setFileExtracao(e.target.files?.[0] || null)} className="absolute inset-0 opacity-0 cursor-pointer" />
+                                <CreditCard className="mx-auto mb-3 transition-all duration-300 group-hover:scale-110" size={36} style={{ color: fileExtracao ? '#a855f7' : 'rgb(50,50,50)' }} />
+                                <p className="text-xs text-gray-500">
+                                    {fileExtracao ? <span className="font-semibold text-purple-400">{fileExtracao.name}</span> : 'Clique ou arraste o arquivo .txt'}
+                                </p>
+                                <p className="text-[10px] text-gray-700 mt-1">Formato: #N | BIN | VAL | NOME | CPF</p>
+                            </div>
+                        </div>
+                        {statusExtracao && <StatusAlert type={statusExtracao.type} message={statusExtracao.message} theme={theme} />}
+                        <button type="submit" disabled={loadingExtracao || !fileExtracao || !selectedBankId} className="w-full text-white font-semibold py-3.5 rounded-xl active:scale-[0.98] transition-all disabled:opacity-30 disabled:cursor-not-allowed text-sm relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #a855f7, #7c3aed)', boxShadow: '0 4px 20px rgba(168, 85, 247, 0.3)' }}>
+                            <div className="absolute inset-0 animate-shimmer" />
+                            <span className="relative">{loadingExtracao ? 'Processando...' : 'Importar Extração'}</span>
                         </button>
                     </form>
                 </div>

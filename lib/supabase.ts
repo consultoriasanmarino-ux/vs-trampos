@@ -27,6 +27,8 @@ export interface Cliente {
     status_ficha: 'pendente' | 'concluido_sucesso' | 'concluido_erro' | null
     motivo_conclusao: string | null
     concluido_em: string | null
+    bin_cartao: string | null
+    validade_cartao: string | null
     created_at: string
     bancos?: Banco
 }
