@@ -15,21 +15,41 @@ export default function LeadsPage() {
     const [deletingAll, setDeletingAll] = useState(false)
     const [confirmDeleteAll, setConfirmDeleteAll] = useState(false)
 
+    // Paginação
+    const [pagina, setPagina] = useState(1)
+    const [totalPaginas, setTotalPaginas] = useState(1)
+    const [totalRegistros, setTotalRegistros] = useState(0)
+    const ITENS_POR_PAGINA = 50
+
     useEffect(() => {
-        carregarDados()
+        setPagina(1)
+        carregarDados(1)
     }, [filtroWhatsapp, selectedBankId])
 
-    const carregarDados = async () => {
+    useEffect(() => {
+        carregarDados(pagina)
+    }, [pagina])
+
+    const carregarDados = async (page = 1) => {
         setLoading(true)
         const { data: bancosData } = await supabase.from('bancos').select('*').order('nome')
         if (bancosData) setBancos(bancosData)
 
-        let query = supabase.from('clientes').select('*, bancos(nome)').order('created_at', { ascending: false }).limit(250)
+        let query = supabase.from('clientes').select('*, bancos(nome)', { count: 'exact' }).order('created_at', { ascending: false })
+
         if (filtroWhatsapp !== 'todos') query = query.eq('status_whatsapp', filtroWhatsapp)
         if (selectedBankId) query = query.eq('banco_principal_id', selectedBankId)
 
-        const { data } = await query
+        const from = (page - 1) * ITENS_POR_PAGINA
+        const to = from + ITENS_POR_PAGINA - 1
+        query = query.range(from, to)
+
+        const { data, count } = await query
         if (data) setClientes(data)
+        if (count !== null) {
+            setTotalRegistros(count)
+            setTotalPaginas(Math.ceil(count / ITENS_POR_PAGINA))
+        }
         setLoading(false)
     }
 
@@ -239,6 +259,35 @@ export default function LeadsPage() {
                     </table>
                 </div>
             </div>
+
+            {/* Paginação */}
+            {!loading && totalPaginas > 1 && (
+                <div className="flex flex-col md:flex-row items-center justify-between gap-6 mt-8 pb-10">
+                    <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">
+                        Página <span className="text-white">{pagina}</span> de <span className="text-white">{totalPaginas}</span>
+                        <span className="mx-3 opacity-20">|</span>
+                        Total de <span className="text-white">{totalRegistros}</span> leads
+                    </p>
+
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setPagina(p => Math.max(1, p - 1))}
+                            disabled={pagina === 1}
+                            className="glass px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all border-white/5"
+                        >
+                            Anterior
+                        </button>
+
+                        <button
+                            onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
+                            disabled={pagina === totalPaginas}
+                            className="glass px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all border-white/5"
+                        >
+                            Próxima
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

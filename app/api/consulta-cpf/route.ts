@@ -117,35 +117,40 @@ export async function POST(request: NextRequest) {
                     // Se tiver Token do Checker configurado
                     if (apiWppToken && apiWppUrl) {
                         try {
-                            console.log(`[WA] Verificando ${listaTels.length} números para CPF ${cpfLimpo}...`)
+                            console.log(`[WA] Verificando ${listaTels.length} números via Whapi/Externo...`)
 
-                            // Check via POST (formato comum de APIs de $1)
+                            // Adiciona DDI 55 se não tiver e monta lista para Whapi
+                            const telsComDdi = listaTels.map(t => t.length <= 11 ? `55${t}` : t)
+
+                            // Whapi.Cloud usa /contacts/check com um array 'contacts'
+                            const waRes = await fetch(apiWppUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${apiWppToken}`
+                                },
+                                body: JSON.stringify({
+                                    blocking: true, // Força a verificação imediata
+                                    contacts: telsComDdi
+                                })
+                            })
+
+                            const waData = await waRes.json()
+
+                            // A Whapi retorna um array de contatos em waData.contacts
+                            // Cada item tem status: "existing" ou "non-existing"
                             for (const tel of listaTels) {
-                                try {
-                                    // Adiciona DDI 55 se não tiver
-                                    const telWithDdi = tel.length <= 11 ? `55${tel}` : tel
+                                const fullTel = tel.length <= 11 ? `55${tel}` : tel
 
-                                    const waRes = await fetch(apiWppUrl, {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                            numbers: telWithDdi, // Algumas APIs aceitam string ou array
-                                            token: apiWppToken
-                                        })
-                                    })
+                                // Procura o resultado deste número no retorno da API
+                                const match = waData.contacts?.find((c: any) => c.input === fullTel || c.wa_id?.startsWith(tel))
 
-                                    const waData = await waRes.json()
-                                    // Lógica de sucesso (pode variar por API, mas costuma ser 1 ou 'success')
-                                    // ekycpro/checknumber.ai costuma retornar status 1 no data
-                                    const hasWa = waData.data?.[telWithDdi] === 1 ||
-                                        waData.data?.[telWithDdi]?.status === 1 ||
-                                        waData.status === 1 ||
-                                        waData.success === true
+                                const hasWa = match?.status === 'existing' ||
+                                    waData.data?.[fullTel] === 1 ||
+                                    waData.status === 'existing' ||
+                                    waData.success === true
 
-                                    delsChecked.push(`${tel} ${hasWa ? '✅' : '❌'}`)
-                                } catch (e) {
-                                    delsChecked.push(tel) // Falhou na checagem, mantém puro
-                                }
+                                delsChecked.push(`${tel} ${hasWa ? '✅' : '❌'}`)
                             }
                         } catch (waErr) {
                             console.error('[WA] Erro na integração externa:', waErr)
@@ -179,6 +184,10 @@ export async function POST(request: NextRequest) {
                 if (scoreVal) novosDados.score = String(scoreVal)
                 if (telefoneComStatus) {
                     novosDados.telefone = telefoneComStatus
+                    // Se usamos a API de WhatsApp, marcamos como verificado
+                    if (apiWppToken && apiWppUrl) {
+                        novosDados.wpp_checked = true
+                    }
                 }
 
                 if (Object.keys(novosDados).length === 0 || !telefoneComStatus) {

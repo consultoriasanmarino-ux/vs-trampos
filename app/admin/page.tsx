@@ -73,7 +73,8 @@ export default function AdminDashboard() {
 
     const carregarStats = async () => {
         let queryTotal = supabase.from('clientes').select('*', { count: 'exact', head: true })
-        let queryIncompletos = supabase.from('clientes').select('*', { count: 'exact', head: true }).or('nome.is.null,nome.eq.,telefone.is.null,telefone.eq.')
+        // Um lead é considerado incompleto se não tem nome/telefone OU se ainda não passou pelo verificador de WhatsApp
+        let queryIncompletos = supabase.from('clientes').select('*', { count: 'exact', head: true }).or('nome.is.null,nome.eq.,telefone.is.null,telefone.eq.,wpp_checked.eq.false')
         let queryWa = supabase.from('clientes').select('*', { count: 'exact', head: true }).ilike('telefone', '%✅%')
         let queryFixo = supabase.from('clientes').select('*', { count: 'exact', head: true }).or('telefone.ilike.%☎️%,telefone.ilike.%📞%')
         let queryPend = supabase.from('clientes').select('*', { count: 'exact', head: true }).not('telefone', 'ilike', '%✅%').not('telefone', 'ilike', '%☎️%').not('telefone', 'ilike', '%📞%').not('telefone', 'is', null)
@@ -161,11 +162,10 @@ export default function AdminDashboard() {
         try {
             console.log('Iniciando consulta automática...')
 
-            // Busca todos os leads sem nome (apenas CPF) ou sem telefone
-            // Usamos limit(2000) mas ordenamos por id para consistência
+            // Busca todos os leads sem nome (apenas CPF), sem telefone ou que ainda não foram verificados no WhatsApp
             let query = supabase.from('clientes')
                 .select('id, cpf, nome, telefone')
-                .or('nome.is.null,nome.eq.,telefone.is.null,telefone.eq.')
+                .or('nome.is.null,nome.eq.,telefone.is.null,telefone.eq.,wpp_checked.eq.false')
                 .limit(2000)
 
             if (selectedBankId) query = query.eq('banco_principal_id', selectedBankId)
