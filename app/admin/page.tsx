@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
     Upload,
     FileText,
@@ -18,6 +18,7 @@ import {
     Globe,
     Trash2,
     CreditCard,
+    XCircle
 } from 'lucide-react'
 import { supabase, Banco } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
@@ -463,26 +464,43 @@ export default function AdminDashboard() {
                                     <span className="text-gray-500">Progresso da Operação</span>
                                     <span style={{ color: theme.primary }}>{enrichProgress.current} / {enrichProgress.total}</span>
                                 </div>
-                                <div className="flex gap-2">
-                                    <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
-                                        <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${(enrichProgress.current / enrichProgress.total) * 100}%` }} />
-                                    </div>
-                                    <button
-                                        onClick={() => { shouldStopEnrich.current = true }}
-                                        className="px-3 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-red-500/20 transition-all"
-                                    >
-                                        Parar
-                                    </button>
+                                <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+                                    <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${(enrichProgress.current / enrichProgress.total) * 100}%` }} />
                                 </div>
                             </div>
                         )}
-                        <button onClick={handleAutoConsultar} disabled={enriching || totalClientes === 0} className="w-full flex items-center justify-center gap-3 font-black uppercase tracking-[0.15em] text-xs py-5 rounded-[1.2rem] shadow-2xl transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed group relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.primary}88)`, color: 'white', boxShadow: `0 10px 40px rgba(${theme.primaryRGB}, 0.2)` }}>
+                        <button
+                            onClick={(e) => {
+                                if (enriching) {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    shouldStopEnrich.current = true
+                                    alert('Parando na próxima oportunidade...')
+                                } else {
+                                    handleAutoConsultar()
+                                }
+                            }}
+                            disabled={(enriching && shouldStopEnrich.current) || totalClientes === 0}
+                            className={`w-full flex items-center justify-center gap-3 font-black uppercase tracking-[0.15em] text-xs py-5 rounded-[1.2rem] shadow-2xl transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed group relative overflow-hidden ${enriching ? 'bg-red-600 animate-pulse' : ''}`}
+                            style={{
+                                background: enriching ? '#dc2626' : `linear-gradient(135deg, ${theme.primary}, ${theme.primary}88)`,
+                                color: 'white',
+                                boxShadow: enriching ? '0 10px 40px rgba(220, 38, 38, 0.4)' : `0 10px 40px rgba(${theme.primaryRGB}, 0.2)`
+                            }}
+                        >
                             {enriching ? (
-                                <><RefreshCw className="animate-spin" size={18} /><span>Processando...</span></>
+                                <>
+                                    <div className="absolute inset-0 bg-black/20 animate-pulse" />
+                                    <XCircle size={18} className="relative z-10" />
+                                    <span className="relative z-10">{shouldStopEnrich.current ? 'INTERROMPENDO...' : 'PARAR CONSULTA'}</span>
+                                </>
                             ) : (
-                                <><Zap size={18} className="group-hover:scale-125 transition-transform" /><span>Iniciar Consulta Automática</span></>
+                                <>
+                                    <div className="absolute inset-0 animate-shimmer" />
+                                    <Zap size={18} className="relative z-10 group-hover:scale-125 transition-transform" />
+                                    <span className="relative z-10 text-white">Iniciar Consulta Automática</span>
+                                </>
                             )}
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer pointer-events-none" />
                         </button>
                     </div>
                 </div>
