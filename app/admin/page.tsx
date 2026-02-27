@@ -152,9 +152,11 @@ export default function AdminDashboard() {
 
     const handleAutoConsultar = async () => {
         // Busca todos os leads sem nome (apenas CPF) ou sem telefone
+        // Adicionamos .limit(2000) para garantir que pegamos todos os registros pendentes, já que o Supabase/PostgREST tem limite padrão
         let query = supabase.from('clientes')
             .select('id, cpf, nome, telefone')
             .or('nome.is.null,nome.eq.,telefone.is.null,telefone.eq.')
+            .limit(2000)
 
         if (selectedBankId) query = query.eq('banco_principal_id', selectedBankId)
 
@@ -170,7 +172,7 @@ export default function AdminDashboard() {
             return
         }
 
-        if (!confirm(`Deseja consultar os dados de ${leadsParaEnriquecer.length} ficha(s) automaticamente?`)) return
+        if (!confirm(`Foram encontrados ${leadsParaEnriquecer.length} registro(s) pendentes de informação. Deseja realizar a consulta automática agora?`)) return
 
         setEnriching(true)
         setEnrichProgress({ current: 0, total: leadsParaEnriquecer.length })
