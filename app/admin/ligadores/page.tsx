@@ -105,10 +105,20 @@ export default function LigadoresPage() {
                                         <p className="text-xs text-gray-600 font-mono">@{lig.login}</p>
                                     </div>
                                 </div>
-                                <button onClick={() => deletarLigador(lig.id)}
-                                    className="p-2 text-gray-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
-                                    <Trash2 size={14} />
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <a
+                                        href={`/admin/fichas?ligadorId=${lig.id}`}
+                                        className="p-2 text-gray-500 hover:text-white hover:bg-white/10 rounded-lg transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest group/btn"
+                                        title="Ver Fichas deste Ligador"
+                                    >
+                                        <Eye size={14} className="group-hover/btn:text-emerald-400" />
+                                        <span className="hidden sm:inline">Fichas</span>
+                                    </a>
+                                    <button onClick={() => deletarLigador(lig.id)}
+                                        className="p-2 text-gray-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
+                                        <Trash2 size={14} />
+                                    </button>
+                                </div>
                             </div>
                         ))
                     )}

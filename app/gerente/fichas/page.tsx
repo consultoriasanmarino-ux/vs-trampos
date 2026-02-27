@@ -1,21 +1,24 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
     Users, Search, Smartphone, Phone, AlertTriangle,
     RefreshCw, UserPlus, ChevronDown, Check, X,
     UserCog, Zap, CreditCard, Clock, CheckCircle2, XCircle,
-    TrendingUp
+    TrendingUp, UserCheck
 } from 'lucide-react'
 import { supabase, Cliente, Ligador } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
 
 export default function GerenteFichas() {
     const { theme, selectedBankId, selectedBankName } = useBankTheme()
+    const searchParams = useSearchParams()
     const [leads, setLeads] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [busca, setBusca] = useState('')
     const [filtroStatus, setFiltroStatus] = useState('todos')
+    const [filtroLigador, setFiltroLigador] = useState('todos')
     const [ligadores, setLigadores] = useState<{ id: string, nome: string }[]>([])
     const [assigningId, setAssigningId] = useState<string | null>(null)
     const [activeTab, setActiveTab] = useState<'atribuir' | 'andamento'>('atribuir')
@@ -34,14 +37,22 @@ export default function GerenteFichas() {
     }, [])
 
     useEffect(() => {
+        const ligId = searchParams.get('ligadorId')
+        if (ligId) {
+            setFiltroLigador(ligId)
+            setActiveTab('andamento')
+        }
+    }, [searchParams])
+
+    useEffect(() => {
         setPagina(1)
-    }, [selectedBankId, filtroStatus, activeTab, busca, ordenacao])
+    }, [selectedBankId, filtroStatus, activeTab, busca, ordenacao, filtroLigador])
 
     useEffect(() => {
         if (selectedBankId) {
             carregarFichas()
         }
-    }, [selectedBankId, filtroStatus, activeTab, pagina, busca, ordenacao])
+    }, [selectedBankId, filtroStatus, activeTab, pagina, busca, ordenacao, filtroLigador])
 
     const carregarLigadores = async () => {
         const { data } = await supabase.from('ligadores').select('id, nome').order('nome')
@@ -77,7 +88,11 @@ export default function GerenteFichas() {
         if (activeTab === 'atribuir') {
             query = query.is('atribuido_a', null)
         } else {
-            query = query.not('atribuido_a', 'is', null)
+            if (filtroLigador !== 'todos') {
+                query = query.eq('atribuido_a', filtroLigador)
+            } else {
+                query = query.not('atribuido_a', 'is', null)
+            }
         }
 
         if (busca) {
@@ -197,6 +212,22 @@ export default function GerenteFichas() {
                         <option value="renda_asc" className="bg-[#0a0a0a]">MENOR RENDA</option>
                     </select>
                 </div>
+
+                {activeTab === 'andamento' && (
+                    <div className="relative group">
+                        <UserCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-white transition-colors" size={16} />
+                        <select
+                            value={filtroLigador}
+                            onChange={(e) => setFiltroLigador(e.target.value)}
+                            className="w-full pl-12 pr-6 py-4 glass rounded-3xl text-white text-sm font-bold focus:outline-none appearance-none cursor-pointer border-white/5 hover:bg-white/[0.05] transition-all"
+                        >
+                            <option value="todos" className="bg-[#0a0a0a]">TODOS LIGADORES</option>
+                            {ligadores.map(l => (
+                                <option key={l.id} value={l.id} className="bg-[#0a0a0a]">{l.nome.toUpperCase()}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
             </div>
 
             {/* Conteúdo Central */}
@@ -288,6 +319,19 @@ export default function GerenteFichas() {
                                             <button onClick={() => setAssigningId(null)} className="p-1 hover:bg-white/10 rounded-lg transition-all"><X size={16} className="text-gray-500" /></button>
                                         </div>
                                         <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                                            {/* Opção de Remover Atribuição */}
+                                            {c.atribuido_a && (
+                                                <button
+                                                    onClick={() => handleAtribuir(c.id, null)}
+                                                    className="w-full flex items-center gap-3 p-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all text-left mb-2 group/remove"
+                                                >
+                                                    <div className="w-8 h-8 rounded-lg bg-rose-500 flex items-center justify-center text-xs font-black text-white">
+                                                        <X size={16} />
+                                                    </div>
+                                                    <span className="text-xs font-bold text-rose-500">REMOVER ATRIBUIÇÃO</span>
+                                                </button>
+                                            )}
+
                                             {ligadores.map(lig => (
                                                 <button
                                                     key={lig.id}

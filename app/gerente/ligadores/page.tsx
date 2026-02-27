@@ -149,6 +149,16 @@ export default function GerenteLigadores() {
                                 <div className="h-full rounded-full transition-all duration-700" style={{ width: `${taxa}%`, background: `linear-gradient(to right, ${theme.primary}, #22c55e)` }} />
                             </div>
                             <p className="text-[10px] text-gray-600 mt-2 text-right font-bold">{taxa}% concluído</p>
+
+                            <div className="mt-4 pt-4 border-t border-white/5 flex justify-end">
+                                <a
+                                    href={`/gerente/fichas?ligadorId=${lig.id}`}
+                                    className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all group/btn"
+                                >
+                                    <Eye size={12} className="group-hover/btn:text-emerald-400" />
+                                    Ver Fichas
+                                </a>
+                            </div>
                         </div>
                     )
                 })}

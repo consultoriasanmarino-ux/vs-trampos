@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
     Users, Search, Smartphone, Phone, AlertTriangle,
     Star, Filter, RefreshCw, Calendar, UserCheck,
@@ -13,8 +14,14 @@ import { useBankTheme } from '@/lib/bank-theme'
 
 export default function FichasAdminPage() {
     const { theme, selectedBankId, selectedBankName } = useBankTheme()
+    const searchParams = useSearchParams()
     const [leads, setLeads] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        const ligId = searchParams.get('ligadorId')
+        if (ligId) setFiltroLigador(ligId)
+    }, [searchParams])
     const [busca, setBusca] = useState('')
     const [filtroStatus, setFiltroStatus] = useState('todos')
     const [filtroLigador, setFiltroLigador] = useState('todos')
@@ -627,6 +634,26 @@ export default function FichasAdminPage() {
                                                 </button>
                                             </div>
                                             <div className="space-y-3 overflow-y-auto flex-1 custom-scrollbar pr-2">
+                                                {/* Opção de Remover Atribuição (Tirar do Ligador) */}
+                                                {c.atribuido_a && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            handleAtribuir(c.id, null)
+                                                        }}
+                                                        className="w-full flex items-center gap-5 px-5 py-5 rounded-[1.5rem] bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 transition-all group/item mb-4"
+                                                    >
+                                                        <div className="w-14 h-14 rounded-2xl bg-rose-500/20 flex items-center justify-center shrink-0 border border-rose-500/30">
+                                                            <X size={24} className="text-rose-500" />
+                                                        </div>
+                                                        <div className="flex-1 text-left">
+                                                            <p className="text-base font-black text-rose-500 tracking-tight">REMOVER ATRIBUIÇÃO</p>
+                                                            <p className="text-[10px] font-bold text-rose-500/50 uppercase tracking-widest mt-1">Tirar este lead do ligador atual</p>
+                                                        </div>
+                                                    </button>
+                                                )}
+
                                                 {ligadores.map(lig => (
                                                     <button
                                                         key={lig.id}
