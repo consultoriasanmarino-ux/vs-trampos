@@ -191,15 +191,23 @@ export default function AdminDashboard() {
             let apiToken = localStorage.getItem('api_consulta_token') || 'doavTXJphHLkpayfbdNdJyGp'
             let apiModulo = localStorage.getItem('api_consulta_modulo') || 'cpf'
 
+            let apiWppUrl = localStorage.getItem('api_wpp_url') || 'https://api.ekycpro.com/v1/whatsapp'
+            let apiWppToken = localStorage.getItem('api_wpp_token') || ''
+
             try {
                 const { data: dbConfigs } = await supabase.from('configuracoes').select('*')
                 if (dbConfigs) {
                     const urlObj = dbConfigs.find(c => c.key === 'api_consulta_url')
                     const tokenObj = dbConfigs.find(c => c.key === 'api_consulta_token')
                     const moduloObj = dbConfigs.find(c => c.key === 'api_consulta_modulo')
+                    const wppUrlObj = dbConfigs.find(c => c.key === 'api_wpp_url')
+                    const wppTokenObj = dbConfigs.find(c => c.key === 'api_wpp_token')
+
                     if (urlObj) apiUrl = urlObj.value
                     if (tokenObj) apiToken = tokenObj.value
                     if (moduloObj) apiModulo = moduloObj.value
+                    if (wppUrlObj) apiWppUrl = wppUrlObj.value
+                    if (wppTokenObj) apiWppToken = wppTokenObj.value
                 }
             } catch (e) {
                 console.warn('Erro ao ler configs do banco')
@@ -222,7 +230,9 @@ export default function AdminDashboard() {
                             cpfs: batch,
                             apiUrl,
                             apiToken,
-                            apiModulo
+                            apiModulo,
+                            apiWppUrl,
+                            apiWppToken
                         })
                     })
 

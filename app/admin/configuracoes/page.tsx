@@ -11,7 +11,8 @@ import {
     Zap,
     CheckCircle2,
     AlertCircle,
-    RefreshCw
+    RefreshCw,
+    Smartphone
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
@@ -25,6 +26,8 @@ export default function ConfigPage() {
     const [apiUrl, setApiUrl] = useState('https://completa.workbuscas.com/api?token={TOKEN}&modulo={MODULO}&consulta={PARAMETRO}')
     const [apiToken, setApiToken] = useState('doavTXJphHLkpayfbdNdJyGp')
     const [apiModulo, setApiModulo] = useState('cpf')
+    const [apiWppUrl, setApiWppUrl] = useState('https://api.ekycpro.com/v1/whatsapp')
+    const [apiWppToken, setApiWppToken] = useState('')
 
     useEffect(() => {
         carregarConfigs()
@@ -40,18 +43,26 @@ export default function ConfigPage() {
                 const urlObj = data.find(c => c.key === 'api_consulta_url')
                 const tokenObj = data.find(c => c.key === 'api_consulta_token')
                 const moduloObj = data.find(c => c.key === 'api_consulta_modulo')
+                const wppUrlObj = data.find(c => c.key === 'api_wpp_url')
+                const wppTokenObj = data.find(c => c.key === 'api_wpp_token')
 
                 if (urlObj) setApiUrl(urlObj.value)
                 if (tokenObj) setApiToken(tokenObj.value)
                 if (moduloObj) setApiModulo(moduloObj.value)
+                if (wppUrlObj) setApiWppUrl(wppUrlObj.value)
+                if (wppTokenObj) setApiWppToken(wppTokenObj.value)
             } else {
                 // Se não tiver no banco, tenta localStorage como fallback
                 const localUrl = localStorage.getItem('api_consulta_url')
                 const localToken = localStorage.getItem('api_consulta_token')
                 const localModulo = localStorage.getItem('api_consulta_modulo')
+                const localWppUrl = localStorage.getItem('api_wpp_url')
+                const localWppToken = localStorage.getItem('api_wpp_token')
                 if (localUrl) setApiUrl(localUrl)
                 if (localToken) setApiToken(localToken)
                 if (localModulo) setApiModulo(localModulo)
+                if (localWppUrl) setApiWppUrl(localWppUrl)
+                if (localWppToken) setApiWppToken(localWppToken)
             }
         } catch (err) {
             console.error('Erro ao carregar configurações:', err)
@@ -69,12 +80,16 @@ export default function ConfigPage() {
             localStorage.setItem('api_consulta_url', apiUrl)
             localStorage.setItem('api_consulta_token', apiToken)
             localStorage.setItem('api_consulta_modulo', apiModulo)
+            localStorage.setItem('api_wpp_url', apiWppUrl)
+            localStorage.setItem('api_wpp_token', apiWppToken)
 
             // Tenta salvar no Supabase
             const updates = [
                 { key: 'api_consulta_url', value: apiUrl },
                 { key: 'api_consulta_token', value: apiToken },
-                { key: 'api_consulta_modulo', value: apiModulo }
+                { key: 'api_consulta_modulo', value: apiModulo },
+                { key: 'api_wpp_url', value: apiWppUrl },
+                { key: 'api_wpp_token', value: apiWppToken }
             ]
 
             const { error } = await supabase.from('configuracoes').upsert(updates, { onConflict: 'key' })
@@ -170,6 +185,55 @@ export default function ConfigPage() {
                                     placeholder="completa"
                                     className="w-full bg-[#080808] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white placeholder-gray-800 text-sm focus:outline-none focus:ring-2 transition-all font-mono"
                                     style={{ '--tw-ring-color': theme.primary + '33' } as any}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* WhatsApp Checker Section */}
+                <div className="glass rounded-[2rem] p-8 border border-white/5 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none group-hover:opacity-10 transition-opacity">
+                        <Smartphone size={120} />
+                    </div>
+
+                    <div className="flex items-center gap-3 mb-8">
+                        <Smartphone size={20} style={{ color: '#25D366' }} />
+                        <h2 className="text-sm font-black text-white uppercase tracking-[0.2em]">WhatsApp Checker (Sem Banimento)</h2>
+                    </div>
+
+                    <div className="space-y-6">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest pl-1">URL da API do Checker</label>
+                            <div className="relative group/input">
+                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-700 group-focus-within/input:text-white transition-colors">
+                                    <LinkIcon size={16} />
+                                </div>
+                                <input
+                                    type="text"
+                                    value={apiWppUrl}
+                                    onChange={(e) => setApiWppUrl(e.target.value)}
+                                    placeholder="https://api.ekycpro.com/v1/whatsapp"
+                                    className="w-full bg-[#080808] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white placeholder-gray-800 text-sm focus:outline-none focus:ring-2 transition-all font-mono"
+                                    style={{ '--tw-ring-color': '#25D36633' } as any}
+                                />
+                            </div>
+                            <p className="text-[9px] text-gray-700 italic pl-1 lowercase">Ex: CheckNumber.AI ou Evolution API</p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest pl-1">Token da API (Checker)</label>
+                            <div className="relative group/input">
+                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-700 group-focus-within/input:text-white transition-colors">
+                                    <Key size={16} />
+                                </div>
+                                <input
+                                    type="password"
+                                    value={apiWppToken}
+                                    onChange={(e) => setApiWppToken(e.target.value)}
+                                    placeholder="Insira seu token do verificador..."
+                                    className="w-full bg-[#080808] border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-white placeholder-gray-800 text-sm focus:outline-none focus:ring-2 transition-all font-mono"
+                                    style={{ '--tw-ring-color': '#25D36633' } as any}
                                 />
                             </div>
                         </div>
