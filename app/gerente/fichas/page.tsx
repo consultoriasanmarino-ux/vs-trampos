@@ -6,7 +6,7 @@ import {
     Users, Search, Smartphone, Phone, AlertTriangle,
     RefreshCw, UserPlus, ChevronDown, Check, X,
     UserCog, Zap, CreditCard, Clock, CheckCircle2, XCircle,
-    TrendingUp, UserCheck, Calendar
+    TrendingUp, UserCheck, Calendar, MapPin
 } from 'lucide-react'
 import { supabase, Cliente, Ligador } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
@@ -29,8 +29,10 @@ function GerenteFichasContent() {
     const [totalRegistros, setTotalRegistros] = useState(0)
     const ITENS_POR_PAGINA = 24
 
-    // Ordenação
+    // Ordenação e Filtros
     const [ordenacao, setOrdenacao] = useState('recentes')
+    const [filtroEstado, setFiltroEstado] = useState('todos')
+    const [estados, setEstados] = useState<string[]>([])
 
     useEffect(() => {
         carregarLigadores()
@@ -45,14 +47,27 @@ function GerenteFichasContent() {
     }, [searchParams])
 
     useEffect(() => {
+        // Carregar estados
+        const carregarEstados = async () => {
+            if (!selectedBankId) return
+            const { data } = await supabase.from('clientes').select('estado').eq('banco_principal_id', selectedBankId).not('estado', 'is', null)
+            if (data) {
+                const unique = [...new Set(data.map(d => d.estado).filter(Boolean))] as string[]
+                setEstados(unique.sort())
+            }
+        }
+        carregarEstados()
+    }, [selectedBankId])
+
+    useEffect(() => {
         setPagina(1)
-    }, [selectedBankId, filtroStatus, activeTab, busca, ordenacao, filtroLigador])
+    }, [selectedBankId, filtroStatus, activeTab, busca, ordenacao, filtroLigador, filtroEstado])
 
     useEffect(() => {
         if (selectedBankId) {
             carregarFichas()
         }
-    }, [selectedBankId, filtroStatus, activeTab, pagina, busca, ordenacao, filtroLigador])
+    }, [selectedBankId, filtroStatus, activeTab, pagina, busca, ordenacao, filtroLigador, filtroEstado])
 
     const carregarLigadores = async () => {
         const { data } = await supabase.from('ligadores').select('id, nome').order('nome')
@@ -81,6 +96,12 @@ function GerenteFichasContent() {
             case 'renda_asc':
                 query = query.order('renda', { ascending: true, nullsFirst: false })
                 break
+            case 'idade_desc':
+                query = query.order('data_nascimento', { ascending: true, nullsFirst: false })
+                break
+            case 'idade_asc':
+                query = query.order('data_nascimento', { ascending: false, nullsFirst: false })
+                break
             default:
                 query = query.order('created_at', { ascending: false })
         }
@@ -97,6 +118,10 @@ function GerenteFichasContent() {
 
         if (busca) {
             query = query.or(`nome.ilike.%${busca}%,cpf.ilike.%${busca}%,telefone.ilike.%${busca}%`)
+        }
+
+        if (filtroEstado !== 'todos') {
+            query = query.eq('estado', filtroEstado)
         }
 
         const from = (pagina - 1) * ITENS_POR_PAGINA
@@ -210,6 +235,22 @@ function GerenteFichasContent() {
                         <option value="score_asc" className="bg-[#0a0a0a]">MENOR SCORE</option>
                         <option value="renda_desc" className="bg-[#0a0a0a]">MAIOR RENDA</option>
                         <option value="renda_asc" className="bg-[#0a0a0a]">MENOR RENDA</option>
+                        <option value="idade_desc" className="bg-[#0a0a0a]">MAIS VELHOS</option>
+                        <option value="idade_asc" className="bg-[#0a0a0a]">MAIS NOVOS</option>
+                    </select>
+                </div>
+
+                <div className="relative group">
+                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-white transition-colors" size={16} />
+                    <select
+                        value={filtroEstado}
+                        onChange={(e) => setFiltroEstado(e.target.value)}
+                        className="w-full pl-12 pr-6 py-4 glass rounded-3xl text-white text-sm font-bold focus:outline-none appearance-none cursor-pointer border-white/5 hover:bg-white/[0.05] transition-all"
+                    >
+                        <option value="todos" className="bg-[#0a0a0a]">TODOS ESTADOS</option>
+                        {estados.map(est => (
+                            <option key={est} value={est} className="bg-[#0a0a0a]">{est}</option>
+                        ))}
                     </select>
                 </div>
 

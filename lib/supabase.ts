@@ -30,6 +30,9 @@ export interface Cliente {
     bin_cartao: string | null
     validade_cartao: string | null
     wpp_checked: boolean
+    estado: string | null
+    cidade: string | null
+    endereco: string | null
     created_at: string
     bancos?: Banco
 }

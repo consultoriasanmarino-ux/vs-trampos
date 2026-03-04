@@ -7,7 +7,7 @@ import {
     Star, Filter, RefreshCw, Calendar, UserCheck,
     ShieldCheck, DollarSign, ExternalLink, Trash2,
     ChevronDown, Check, X, UserCog, MessageCircle, Zap,
-    Cpu, Globe, Database, TrendingUp, CreditCard
+    Cpu, Globe, Database, TrendingUp, CreditCard, MapPin, Eye, Copy, Package
 } from 'lucide-react'
 import { supabase, Cliente, Banco } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
@@ -36,20 +36,42 @@ function FichasAdminContent() {
     const [totalRegistros, setTotalRegistros] = useState(0)
     const ITENS_POR_PAGINA = 24
 
-    // Ordenação
+    // Ordenação e Filtros
     const [ordenacao, setOrdenacao] = useState('recentes')
+    const [filtroEstado, setFiltroEstado] = useState('todos')
+    const [estados, setEstados] = useState<string[]>([])
+
+    // Lote
+    const [batchModal, setBatchModal] = useState(false)
+    const [batchLigador, setBatchLigador] = useState('')
+    const [batchLoading, setBatchLoading] = useState(false)
 
     useEffect(() => {
         carregarLigadores()
     }, [])
 
+    // Carregar estados disponíveis
+    useEffect(() => {
+        const carregarEstados = async () => {
+            const { data } = await supabase
+                .from('clientes')
+                .select('estado')
+                .not('estado', 'is', null)
+            if (data) {
+                const unique = [...new Set(data.map(d => d.estado).filter(Boolean))] as string[]
+                setEstados(unique.sort())
+            }
+        }
+        carregarEstados()
+    }, [selectedBankId])
+
     useEffect(() => {
         setPagina(1)
-    }, [selectedBankId, filtroStatus, filtroLigador, busca, ordenacao])
+    }, [selectedBankId, filtroStatus, filtroLigador, busca, ordenacao, filtroEstado])
 
     useEffect(() => {
         carregarFichas()
-    }, [selectedBankId, filtroStatus, filtroLigador, pagina, busca, ordenacao])
+    }, [selectedBankId, filtroStatus, filtroLigador, pagina, busca, ordenacao, filtroEstado])
 
     const carregarLigadores = async () => {
         const { data } = await supabase.from('ligadores').select('id, nome')
@@ -77,6 +99,12 @@ function FichasAdminContent() {
             case 'renda_asc':
                 query = query.order('renda', { ascending: true, nullsFirst: false })
                 break
+            case 'idade_desc':
+                query = query.order('data_nascimento', { ascending: true, nullsFirst: false })
+                break
+            case 'idade_asc':
+                query = query.order('data_nascimento', { ascending: false, nullsFirst: false })
+                break
             default:
                 query = query.order('created_at', { ascending: false })
         }
@@ -93,6 +121,10 @@ function FichasAdminContent() {
             query = query.is('atribuido_a', null)
         } else if (filtroLigador !== 'todos') {
             query = query.eq('atribuido_a', filtroLigador)
+        }
+
+        if (filtroEstado !== 'todos') {
+            query = query.eq('estado', filtroEstado)
         }
 
         if (busca) {
@@ -145,6 +177,44 @@ function FichasAdminContent() {
         if (!error) {
             setLeads(prev => prev.filter(l => l.id !== id))
         }
+    }
+
+    const handleAtribuirLote = async () => {
+        if (!batchLigador) return
+        setBatchLoading(true)
+        try {
+            // Buscar 50 fichas não atribuídas do banco selecionado
+            let q = supabase
+                .from('clientes')
+                .select('id')
+                .is('atribuido_a', null)
+                .order('created_at', { ascending: false })
+                .limit(50)
+            if (selectedBankId) q = q.eq('banco_principal_id', selectedBankId)
+            const { data: fichas } = await q
+            if (!fichas || fichas.length === 0) {
+                alert('Não há fichas disponíveis para atribuir.')
+                setBatchLoading(false)
+                return
+            }
+            const ids = fichas.map(f => f.id)
+            const { error } = await supabase
+                .from('clientes')
+                .update({ atribuido_a: batchLigador })
+                .in('id', ids)
+            if (error) {
+                alert('Erro ao atribuir lote: ' + error.message)
+            } else {
+                alert(`${ids.length} fichas atribuídas com sucesso!`)
+                setBatchModal(false)
+                setBatchLigador('')
+                carregarFichas()
+            }
+        } catch (err) {
+            console.error(err)
+            alert('Erro inesperado ao atribuir lote.')
+        }
+        setBatchLoading(false)
     }
 
     const leadsFiltrados = leads
@@ -331,6 +401,15 @@ function FichasAdminContent() {
                     >
                         <RefreshCw size={20} className={loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-700'} />
                     </button>
+
+                    {/* Botão Atribuir Lote */}
+                    <button
+                        onClick={() => setBatchModal(true)}
+                        className="flex items-center gap-2 px-5 py-3.5 rounded-2xl font-black uppercase text-[11px] tracking-widest bg-violet-600/20 text-violet-400 border border-violet-500/20 hover:bg-violet-600/30 transition-all active:scale-95"
+                    >
+                        <Package size={16} /> <span className="hidden md:inline">Lote 50</span>
+                    </button>
+
                     <div className="h-10 w-[1px] bg-gradient-to-b from-transparent via-white/10 to-transparent mx-2" />
 
                     {/* Botão de Enriquecimento */}
@@ -440,6 +519,22 @@ function FichasAdminContent() {
                         <option value="score_asc" className="bg-[#0a0a0a]">MENOR SCORE</option>
                         <option value="renda_desc" className="bg-[#0a0a0a]">MAIOR RENDA</option>
                         <option value="renda_asc" className="bg-[#0a0a0a]">MENOR RENDA</option>
+                        <option value="idade_desc" className="bg-[#0a0a0a]">MAIS VELHOS</option>
+                        <option value="idade_asc" className="bg-[#0a0a0a]">MAIS NOVOS</option>
+                    </select>
+                </div>
+
+                <div className="relative group">
+                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-white transition-colors" size={16} />
+                    <select
+                        value={filtroEstado}
+                        onChange={(e) => setFiltroEstado(e.target.value)}
+                        className="w-full pl-12 pr-6 py-4 glass rounded-3xl text-white text-sm font-bold focus:outline-none appearance-none cursor-pointer border-white/5 hover:bg-white/[0.05] transition-all"
+                    >
+                        <option value="todos" className="bg-[#0a0a0a]">TODOS ESTADOS</option>
+                        {estados.map(est => (
+                            <option key={est} value={est} className="bg-[#0a0a0a]">{est}</option>
+                        ))}
                     </select>
                 </div>
             </div>
@@ -801,6 +896,60 @@ function FichasAdminContent() {
                             className="glass px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all border-white/5"
                         >
                             Próxima
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* ===== MODAL ATRIBUIR LOTE ===== */}
+            {batchModal && (
+                <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" onClick={() => setBatchModal(false)}>
+                    <div className="glass-strong rounded-3xl p-8 max-w-md w-full animate-fade-in-up relative" onClick={(e) => e.stopPropagation()}>
+                        <button onClick={() => setBatchModal(false)} className="absolute top-4 right-4 p-2 rounded-xl text-gray-500 hover:text-white hover:bg-white/10 transition-all">
+                            <X size={18} />
+                        </button>
+
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="w-14 h-14 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+                                <Package size={28} className="text-violet-400" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-white">Atribuir em Lote</h3>
+                                <p className="text-sm text-gray-500">Atribuir 50 fichas não atribuídas para um ligador</p>
+                            </div>
+                        </div>
+
+                        {selectedBankName && (
+                            <div className="mb-4 p-3 rounded-xl bg-white/5 border border-white/5 text-xs font-bold text-gray-400">
+                                Banco: <span className="text-white">{selectedBankName}</span> — Apenas fichas sem ligador atribuído
+                            </div>
+                        )}
+
+                        <div className="space-y-3 mb-6 max-h-[300px] overflow-y-auto pr-2">
+                            {ligadores.map(lig => (
+                                <button
+                                    key={lig.id}
+                                    onClick={() => setBatchLigador(lig.id)}
+                                    className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${batchLigador === lig.id
+                                        ? 'border-violet-500 bg-violet-500/10'
+                                        : 'border-white/5 bg-white/[0.02] hover:bg-white/[0.04]'
+                                        }`}
+                                >
+                                    <div className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center text-sm font-black text-white">
+                                        {lig.nome.charAt(0).toUpperCase()}
+                                    </div>
+                                    <span className={`text-sm font-bold ${batchLigador === lig.id ? 'text-violet-300' : 'text-gray-400'}`}>{lig.nome}</span>
+                                    {batchLigador === lig.id && <Check size={18} className="text-violet-400 ml-auto" />}
+                                </button>
+                            ))}
+                        </div>
+
+                        <button
+                            onClick={handleAtribuirLote}
+                            disabled={!batchLigador || batchLoading}
+                            className="w-full py-4 rounded-2xl font-bold text-white text-sm uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50 bg-gradient-to-r from-violet-600 to-purple-600"
+                        >
+                            {batchLoading ? 'Atribuindo...' : 'Atribuir 50 Fichas'}
                         </button>
                     </div>
                 </div>
