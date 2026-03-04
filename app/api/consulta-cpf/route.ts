@@ -69,6 +69,16 @@ export async function POST(request: NextRequest) {
                             if (rendaNum) novosDados.renda = rendaNum
                             if (scoreVal) novosDados.score = Number(scoreVal)
 
+                            // Estado, Cidade e Endereço
+                            const endereco = result?.Endereco || result?.endereco || basicos?.endereco || basicos?.Endereco || {}
+                            const estado = endereco.uf || endereco.UF || endereco.estado || basicos?.uf || basicos?.UF || null
+                            const cidade = endereco.cidade || endereco.Cidade || endereco.municipio || basicos?.cidade || null
+                            const enderecoCompleto = endereco.logradouro || endereco.Logradouro || endereco.endereco || null
+
+                            if (estado) novosDados.estado = String(estado).toUpperCase().trim()
+                            if (cidade) novosDados.cidade = String(cidade).trim()
+                            if (enderecoCompleto) novosDados.endereco = String(enderecoCompleto).trim()
+
                             // Telefones (se vier do enriquecimento e não tivermos ainda)
                             if (telefonesRaw.length > 0) {
                                 const tels = telefonesRaw.map((t: any) => String(t.telefone || t).replace(/\D/g, '')).filter(Boolean)

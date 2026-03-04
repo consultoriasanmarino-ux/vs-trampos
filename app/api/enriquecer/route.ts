@@ -61,6 +61,12 @@ function parseTxtLeads(text: string) {
                         lead.telefone = allTels.join(', ')
                     }
                 }
+            } else if (/ESTADO:|UF:/i.test(line)) {
+                lead.estado = line.split(/ESTADO:|UF:/i)[1]?.trim()?.toUpperCase()
+            } else if (/CIDADE:|MUNICIPIO:/i.test(line)) {
+                lead.cidade = line.split(/CIDADE:|MUNICIPIO:/i)[1]?.trim()
+            } else if (/ENDERE[CÇ]O:|LOGRADOURO:/i.test(line)) {
+                lead.endereco = line.split(/ENDERE[CÇ]O:|LOGRADOURO:/i)[1]?.trim()
             }
         }
 
@@ -129,6 +135,9 @@ export async function POST(request: NextRequest) {
                 renda: lead.renda || null,
                 score: lead.score || null,
                 telefone: lead.telefone || null,
+                estado: lead.estado || null,
+                cidade: lead.cidade || null,
+                endereco: lead.endereco || null,
                 status_whatsapp: null
             }
 
