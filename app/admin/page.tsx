@@ -218,13 +218,27 @@ export default function AdminDashboard() {
                     break
                 }
                 const batch = leadsParaEnriquecer.slice(i, i + batchSize)
-                await fetch('/api/consulta-cpf', {
+                const res = await fetch('/api/consulta-cpf', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ cpfs: batch, enrichOnly: true })
                 })
+
+                if (res.ok) {
+                    const resData = await res.json()
+                    if (resData.detalhes) {
+                        resData.detalhes.forEach((det: any) => {
+                            if (det.sucesso) {
+                                const local = det.dados?.estado ? `[${det.dados.estado}]` : '[S/ LOCAL]'
+                                addLog(`✅ ${det.cpf} - ${det.dados?.nome?.substring(0, 15) || 'OK'} ${local}`)
+                            } else {
+                                addLog(`❌ ${det.cpf} - ${det.erro || 'Sem dados'}`)
+                            }
+                        })
+                    }
+                }
+
                 setEnrichProgress(prev => ({ ...prev, current: Math.min(prev.total, i + batchSize) }))
-                addLog(`✨ Processado lote ${Math.floor(i / batchSize) + 1}`)
             }
 
             setEnriching(false)
@@ -358,13 +372,27 @@ export default function AdminDashboard() {
                     break
                 }
                 const batch = leadsIncompletos.slice(i, i + batchSize)
-                await fetch('/api/consulta-cpf', {
+                const res = await fetch('/api/consulta-cpf', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ cpfs: batch, enrichOnly: true })
                 })
+
+                if (res.ok) {
+                    const resData = await res.json()
+                    if (resData.detalhes) {
+                        resData.detalhes.forEach((det: any) => {
+                            if (det.sucesso) {
+                                const local = det.dados?.estado ? `[${det.dados.estado}]` : '[S/ LOCAL]'
+                                addLog(`🔄 ${det.cpf} - ${det.dados?.nome?.substring(0, 15) || 'OK'} ${local}`)
+                            } else {
+                                addLog(`⚠️ ${det.cpf} - ${det.erro || 'Manteve dados'}`)
+                            }
+                        })
+                    }
+                }
+
                 setEnrichProgress(prev => ({ ...prev, current: Math.min(prev.total, i + batchSize) }))
-                addLog(`✨ Re-enriquecido lote ${Math.floor(i / batchSize) + 1} (${Math.min(i + batchSize, leadsIncompletos.length)}/${leadsIncompletos.length})`)
             }
 
             setEnriching(false)
