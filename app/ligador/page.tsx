@@ -494,22 +494,31 @@ export default function LigadorPage() {
                                             <h3 className="text-sm sm:text-base font-bold text-white group-hover:text-violet-400 transition-colors truncate">{c.nome || 'Sem Nome'}</h3>
                                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                                 <span className="text-[10px] sm:text-[11px] font-mono text-gray-500">{c.cpf}</span>
-                                                {idade && (
-                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/10">
-                                                        {idade} anos
-                                                    </span>
-                                                )}
-                                                {(c as any).estado && (
-                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400 border border-violet-500/10">
-                                                        {(c as any).estado}
-                                                    </span>
-                                                )}
                                             </div>
                                         </div>
                                     </div>
                                     <div className="shrink-0 ml-2">
                                         {statusBadge(c.status_whatsapp, c.telefone)}
                                     </div>
+                                </div>
+
+                                {/* Info Badges - Idade/Estado/Cidade */}
+                                <div className="flex items-center gap-1.5 flex-wrap mb-3 sm:mb-4">
+                                    {idade && (
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-cyan-500/10 text-cyan-400 text-[9px] sm:text-[10px] font-bold border border-cyan-500/10">
+                                            <Calendar size={9} /> {idade} anos
+                                        </span>
+                                    )}
+                                    {c.estado && (
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-violet-500/10 text-violet-400 text-[9px] sm:text-[10px] font-bold border border-violet-500/10">
+                                            <MapPin size={9} /> {c.estado}
+                                        </span>
+                                    )}
+                                    {c.cidade && (
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white/5 text-gray-400 text-[9px] sm:text-[10px] font-medium border border-white/5">
+                                            {c.cidade}
+                                        </span>
+                                    )}
                                 </div>
 
                                 {/* Info Grid */}

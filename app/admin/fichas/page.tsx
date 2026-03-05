@@ -219,6 +219,18 @@ function FichasAdminContent() {
 
     const leadsFiltrados = leads
 
+    const calcularIdade = (dataNasc: string | null) => {
+        if (!dataNasc) return null
+        const parts = dataNasc.match(/^(\d{4})-(\d{2})-(\d{2})/)
+        if (!parts) return null
+        const nascimento = new Date(parseInt(parts[1]), parseInt(parts[2]) - 1, parseInt(parts[3]))
+        const hoje = new Date()
+        let idade = hoje.getFullYear() - nascimento.getFullYear()
+        const m = hoje.getMonth() - nascimento.getMonth()
+        if (m < 0 || (m === 0 && hoje.getDate() < nascimento.getDate())) idade--
+        return idade
+    }
+
     const getNomeLigador = (id: string | null) => {
         if (!id) return null
         const lig = ligadores.find(l => l.id === id)
@@ -605,6 +617,27 @@ function FichasAdminContent() {
                                         <div className="shrink-0">
                                             {statusBadge(c.status_whatsapp, c.telefone)}
                                         </div>
+                                    </div>
+
+                                    {/* Badges Idade / Estado / Cidade */}
+                                    <div className="flex items-center gap-2 flex-wrap mb-6">
+                                        {calcularIdade(c.data_nascimento) && (
+                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-500/10 text-cyan-400 text-[10px] font-black border border-cyan-500/10">
+                                                <Calendar size={10} />
+                                                {calcularIdade(c.data_nascimento)} anos
+                                            </span>
+                                        )}
+                                        {c.estado && (
+                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-500/10 text-violet-400 text-[10px] font-black border border-violet-500/10">
+                                                <MapPin size={10} />
+                                                {c.estado}
+                                            </span>
+                                        )}
+                                        {c.cidade && (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 text-gray-400 text-[10px] font-bold border border-white/5">
+                                                {c.cidade}
+                                            </span>
+                                        )}
                                     </div>
 
                                     {/* Info Grid */}
