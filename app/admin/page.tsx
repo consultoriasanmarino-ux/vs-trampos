@@ -21,7 +21,8 @@ import {
     Trash2,
     RefreshCw,
     CreditCard,
-    ArrowUpRight
+    ArrowUpRight,
+    MapPin
 } from 'lucide-react'
 import { supabase, Banco } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
@@ -315,6 +316,70 @@ export default function AdminDashboard() {
         }
     }
 
+    const handleReenriquecer = async () => {
+        try {
+            if (!selectedBankId) {
+                alert('Selecione um banco primeiro.')
+                return
+            }
+
+            addLog('🔄 Iniciando re-enriquecimento de CPFs existentes...')
+            shouldStopEnrich.current = false
+            setLogs([])
+
+            // Busca leads que já existem mas faltam estado ou cidade
+            let query = supabase.from('clientes')
+                .select('id, cpf, nome, telefone')
+                .not('cpf', 'is', null)
+                .or('estado.is.null,estado.eq.,cidade.is.null,cidade.eq.')
+                .limit(2000)
+
+            if (selectedBankId) query = query.eq('banco_principal_id', selectedBankId)
+
+            const { data: leadsIncompletos, error: queryError } = await query
+
+            if (queryError) {
+                alert('Erro ao buscar leads: ' + queryError.message)
+                return
+            }
+
+            if (!leadsIncompletos || leadsIncompletos.length === 0) {
+                alert('Todos os CPFs já estão completos! Nenhum dado faltando.')
+                return
+            }
+
+            addLog(`📋 Encontrados ${leadsIncompletos.length} CPFs com dados incompletos`)
+
+            if (!confirm(`Encontrados ${leadsIncompletos.length} CPFs com estado/cidade faltando. Deseja re-enriquecer agora?`)) return
+
+            setEnriching(true)
+            setEnrichProgress({ current: 0, total: leadsIncompletos.length })
+
+            const batchSize = 5
+            for (let i = 0; i < leadsIncompletos.length; i += batchSize) {
+                if (shouldStopEnrich.current) {
+                    addLog('🛑 Interrompido pelo usuário.')
+                    break
+                }
+                const batch = leadsIncompletos.slice(i, i + batchSize)
+                await fetch('/api/consulta-cpf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cpfs: batch, enrichOnly: true })
+                })
+                setEnrichProgress(prev => ({ ...prev, current: Math.min(prev.total, i + batchSize) }))
+                addLog(`✨ Re-enriquecido lote ${Math.floor(i / batchSize) + 1} (${Math.min(i + batchSize, leadsIncompletos.length)}/${leadsIncompletos.length})`)
+            }
+
+            setEnriching(false)
+            carregarStats()
+            alert('Re-enriquecimento finalizado! Dados de estado/cidade atualizados.')
+        } catch (error) {
+            setEnriching(false)
+            addLog('❌ Erro no re-enriquecimento.')
+        }
+    }
+
     return (
         <div className="p-6 lg:p-8 text-white">
             <div className="flex items-center justify-between mb-8 animate-fade-in-up">
@@ -435,6 +500,9 @@ export default function AdminDashboard() {
                             <>
                                 <button onClick={handleAutoConsultar} className="w-full py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] border border-white/5 flex items-center justify-center gap-3">
                                     <Database size={16} className="text-gray-400" /> Enriquecer CPFs
+                                </button>
+                                <button onClick={handleReenriquecer} className="w-full py-4 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] border border-amber-500/20 flex items-center justify-center gap-3">
+                                    <MapPin size={16} /> Completar Dados Existentes
                                 </button>
                                 <button onClick={handleCheckWhatsapp} className="w-full py-4 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] border border-emerald-500/20 flex items-center justify-center gap-3">
                                     <MessageSquare size={16} /> Verificar WhatsApp

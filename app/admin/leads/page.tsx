@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Users, Search, Smartphone, Phone, AlertTriangle, Filter, Trash2, X, AlertCircle, RefreshCw, Shield, XCircle, ArrowRight } from 'lucide-react'
+import { Users, Search, Smartphone, Phone, AlertTriangle, Filter, Trash2, X, AlertCircle, RefreshCw, Shield, XCircle, ArrowRight, MapPin, Calendar } from 'lucide-react'
 import { supabase, Cliente, Banco } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
 
@@ -14,6 +14,18 @@ export default function LeadsPage() {
     const [loading, setLoading] = useState(true)
     const [deletingAll, setDeletingAll] = useState(false)
     const [clearingCheck, setClearingCheck] = useState(false)
+
+    const calcularIdade = (dataNasc: string | null) => {
+        if (!dataNasc) return null
+        const parts = dataNasc.match(/^(\d{4})-(\d{2})-(\d{2})/)
+        if (!parts) return null
+        const nascimento = new Date(parseInt(parts[1]), parseInt(parts[2]) - 1, parseInt(parts[3]))
+        const hoje = new Date()
+        let idade = hoje.getFullYear() - nascimento.getFullYear()
+        const m = hoje.getMonth() - nascimento.getMonth()
+        if (m < 0 || (m === 0 && hoje.getDate() < nascimento.getDate())) idade--
+        return idade
+    }
     const [confirmDeleteAll, setConfirmDeleteAll] = useState(false)
 
     // Paginação
@@ -110,8 +122,8 @@ export default function LeadsPage() {
                     const numberOnly = p.replace(/[✅❌]/g, '').trim()
                     return (
                         <div key={idx} className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[10px] font-bold ${hasWa ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                                hasFail ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
-                                    'bg-white/5 border-white/5 text-gray-500'
+                            hasFail ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
+                                'bg-white/5 border-white/5 text-gray-500'
                             }`}>
                             {numberOnly}
                             {hasWa && <Phone size={10} />}
@@ -170,20 +182,20 @@ export default function LeadsPage() {
                     <table className="w-full">
                         <thead>
                             <tr className="bg-white/[0.02] border-b border-white/5">
-                                {['Identificação', 'Contatos', 'Informações Financeiras', 'Status', 'Ações'].map(h => (
-                                    <th key={h} className="text-left px-8 py-6 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">{h}</th>
+                                {['Identificação', 'Idade', 'Estado', 'Cidade', 'Contatos', 'Informações Financeiras', 'Status', 'Ações'].map(h => (
+                                    <th key={h} className="text-left px-6 py-6 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] whitespace-nowrap">{h}</th>
                                 ))}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/[0.02]">
                             {loading ? (
-                                <tr><td colSpan={5} className="py-20 text-center text-gray-700 italic">Carregando base de dados...</td></tr>
+                                <tr><td colSpan={8} className="py-20 text-center text-gray-700 italic">Carregando base de dados...</td></tr>
                             ) : clientesFiltrados.length === 0 ? (
-                                <tr><td colSpan={5} className="py-20 text-center text-gray-700 italic">Nenhum registro encontrado nesta visualização.</td></tr>
+                                <tr><td colSpan={8} className="py-20 text-center text-gray-700 italic">Nenhum registro encontrado nesta visualização.</td></tr>
                             ) : (
                                 clientesFiltrados.map((c, i) => (
                                     <tr key={c.id} className="hover:bg-white/[0.01] transition-colors group">
-                                        <td className="px-8 py-6">
+                                        <td className="px-6 py-6">
                                             <div className="flex items-center gap-4">
                                                 <div className="w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center text-gray-400 group-hover:scale-110 transition-transform">{i + 1 + (pagina - 1) * ITENS_POR_PAGINA}</div>
                                                 <div>
@@ -192,7 +204,34 @@ export default function LeadsPage() {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-8 py-6">{renderTelefones(c.telefone || '')}</td>
+                                        <td className="px-6 py-6">
+                                            {calcularIdade(c.data_nascimento) ? (
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-500/10 text-cyan-400 text-xs font-bold border border-cyan-500/10">
+                                                    <Calendar size={10} />
+                                                    {calcularIdade(c.data_nascimento)} anos
+                                                </span>
+                                            ) : (
+                                                <span className="text-gray-700 text-xs">—</span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-6">
+                                            {c.estado ? (
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-500/10 text-violet-400 text-xs font-bold border border-violet-500/10">
+                                                    <MapPin size={10} />
+                                                    {c.estado}
+                                                </span>
+                                            ) : (
+                                                <span className="text-gray-700 text-xs">—</span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-6">
+                                            {c.cidade ? (
+                                                <span className="text-xs font-bold text-gray-300">{c.cidade}</span>
+                                            ) : (
+                                                <span className="text-gray-700 text-xs">—</span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-6">{renderTelefones(c.telefone || '')}</td>
                                         <td className="px-8 py-6">
                                             <div className="flex items-center gap-6">
                                                 <div>
