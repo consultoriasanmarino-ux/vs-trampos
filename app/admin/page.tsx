@@ -22,7 +22,8 @@ import {
     RefreshCw,
     CreditCard,
     ArrowUpRight,
-    MapPin
+    MapPin,
+    FileCheck
 } from 'lucide-react'
 import { supabase, Banco } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
@@ -48,6 +49,11 @@ export default function AdminDashboard() {
     const [totalBancos, setTotalBancos] = useState(0)
 
     const [enriching, setEnriching] = useState(false)
+
+    // Estado para Importar Números do GOV
+    const [govFile, setGovFile] = useState<File | null>(null)
+    const [govLoading, setGovLoading] = useState(false)
+    const [govStatus, setGovStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
     const [enrichProgress, setEnrichProgress] = useState({ current: 0, total: 0 })
     const shouldStopEnrich = useRef(false)
     const [logs, setLogs] = useState<string[]>([])
@@ -404,6 +410,102 @@ export default function AdminDashboard() {
         }
     }
 
+    const handleImportarGov = async () => {
+        if (!govFile) return
+        setGovLoading(true)
+        setGovStatus(null)
+        addLog('📋 Iniciando importação de números do GOV...')
+
+        try {
+            const text = await govFile.text()
+            const linhas = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+
+            if (linhas.length === 0) {
+                setGovStatus({ type: 'error', message: 'Arquivo vazio.' })
+                setGovLoading(false)
+                return
+            }
+
+            addLog(`📄 ${linhas.length} linhas encontradas no arquivo.`)
+
+            let atualizados = 0
+            let naoEncontrados = 0
+            let semMatch = 0
+
+            for (let idx = 0; idx < linhas.length; idx++) {
+                const linha = linhas[idx].replace(/\s/g, '')
+                // Formato: CPF-XX (últimos 2 dígitos do celular)
+                const parts = linha.split('-')
+                if (parts.length < 2) continue
+
+                const cpfRaw = parts[0].replace(/\D/g, '')
+                const ultimos2 = parts[parts.length - 1] // Pega o último segmento após o último '-'
+
+                if (cpfRaw.length < 11 || ultimos2.length < 2) continue
+
+                // Buscar o lead pelo CPF
+                const { data: leads } = await supabase
+                    .from('clientes')
+                    .select('id, cpf, telefone')
+                    .eq('cpf', cpfRaw)
+                    .limit(1)
+
+                if (!leads || leads.length === 0) {
+                    naoEncontrados++
+                    continue
+                }
+
+                const lead = leads[0]
+                if (!lead.telefone) {
+                    semMatch++
+                    addLog(`⚠️ ${cpfRaw} - Sem telefones cadastrados`)
+                    continue
+                }
+
+                // Pegar todos os números cadastrados
+                const numeros = lead.telefone
+                    .replace(/[✅❌☎️📞]/g, '')
+                    .split(',')
+                    .map((t: string) => t.trim())
+                    .filter(Boolean)
+
+                // Encontrar o número que termina com os 2 dígitos do GOV
+                const numeroCorreto = numeros.find((num: string) => {
+                    const limpo = num.replace(/\D/g, '')
+                    return limpo.endsWith(ultimos2)
+                })
+
+                if (numeroCorreto) {
+                    // Manter SOMENTE esse número
+                    const numLimpo = numeroCorreto.replace(/\D/g, '')
+                    await supabase
+                        .from('clientes')
+                        .update({ telefone: numLimpo })
+                        .eq('id', lead.id)
+
+                    atualizados++
+                    if (atualizados % 10 === 0 || idx === linhas.length - 1) {
+                        addLog(`✅ ${atualizados} atualizados | CPF ${cpfRaw} → ${numLimpo}`)
+                    }
+                } else {
+                    semMatch++
+                    addLog(`❌ ${cpfRaw} - Nenhum número termina com "${ultimos2}" (tinha: ${numeros.length})`)
+                }
+            }
+
+            setGovStatus({
+                type: 'success',
+                message: `Concluído! ${atualizados} atualizados, ${naoEncontrados} não encontrados, ${semMatch} sem match.`
+            })
+            addLog(`🎯 GOV Finalizado: ${atualizados} atualizados | ${naoEncontrados} não encontrados | ${semMatch} sem match`)
+            setGovFile(null)
+        } catch (err: any) {
+            setGovStatus({ type: 'error', message: err.message })
+            addLog(`🚨 Erro: ${err.message}`)
+        }
+        setGovLoading(false)
+    }
+
     return (
         <div className="p-6 lg:p-8 text-white">
             <div className="flex items-center justify-between mb-8 animate-fade-in-up">
@@ -537,6 +639,43 @@ export default function AdminDashboard() {
                                 <XCircle size={16} /> Parar Processo
                             </button>
                         )}
+                    </div>
+                </div>
+            </div>
+
+            {/* CARD: Importar Números do GOV */}
+            <div className="glass rounded-2xl p-6 card-hover lg:col-span-3 mt-6">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2.5 rounded-xl bg-teal-500/10">
+                        <FileCheck size={20} className="text-teal-400" />
+                    </div>
+                    <div>
+                        <h2 className="text-base font-semibold text-white">Importar Números do GOV</h2>
+                        <p className="text-[10px] text-gray-500 mt-0.5">Arquivo .txt com formato <strong className="text-gray-400">CPF-2últimosdígitos</strong>. Ex: 04575429937-88</p>
+                    </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="border border-dashed rounded-2xl p-8 text-center cursor-pointer relative" style={{ borderColor: 'rgba(45, 212, 191, 0.2)' }}>
+                        <input type="file" accept=".txt" onChange={(e) => setGovFile(e.target.files?.[0] || null)} className="absolute inset-0 opacity-0 cursor-pointer" />
+                        <FileCheck className="mx-auto mb-3" size={36} style={{ color: govFile ? '#2dd4bf' : 'rgb(50,50,50)' }} />
+                        <p className="text-xs text-gray-500">{govFile ? govFile.name : 'Clique ou arraste o arquivo .txt'}</p>
+                    </div>
+                    <div className="flex flex-col justify-between gap-4">
+                        <div className="bg-black/30 rounded-xl p-4 border border-white/5 text-[10px] text-gray-500 leading-relaxed">
+                            <p className="mb-1"><strong className="text-teal-400">Como funciona:</strong></p>
+                            <p>1. O sistema lê cada linha (CPF + 2 dígitos).</p>
+                            <p>2. Busca o lead pelo CPF no banco.</p>
+                            <p>3. Compara os 2 últimos dígitos com os telefones cadastrados.</p>
+                            <p>4. <strong className="text-white">Mantém SOMENTE o telefone que bate</strong>, apagando todos os outros.</p>
+                        </div>
+                        {govStatus && <StatusAlert type={govStatus.type} message={govStatus.message} theme={theme} />}
+                        <button
+                            onClick={handleImportarGov}
+                            disabled={govLoading || !govFile}
+                            className="w-full font-semibold py-3.5 rounded-xl text-sm bg-teal-600 hover:bg-teal-500 text-white transition-all disabled:opacity-40 disabled:pointer-events-none"
+                        >
+                            {govLoading ? 'Processando...' : 'Processar Números do GOV'}
+                        </button>
                     </div>
                 </div>
             </div>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Users, Search, Smartphone, Phone, AlertTriangle, Filter, Trash2, X, AlertCircle, RefreshCw, Shield, XCircle, ArrowRight, MapPin, Calendar } from 'lucide-react'
+import { Users, Search, Smartphone, Phone, AlertTriangle, Filter, Trash2, X, AlertCircle, RefreshCw, Shield, XCircle, ArrowRight, MapPin, Calendar, Download } from 'lucide-react'
 import { supabase, Cliente, Banco } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
 
@@ -14,6 +14,7 @@ export default function LeadsPage() {
     const [loading, setLoading] = useState(true)
     const [deletingAll, setDeletingAll] = useState(false)
     const [clearingCheck, setClearingCheck] = useState(false)
+    const [exporting, setExporting] = useState(false)
 
     const calcularIdade = (dataNasc: string | null) => {
         if (!dataNasc) return null
@@ -111,6 +112,53 @@ export default function LeadsPage() {
         setClearingCheck(false)
     }
 
+    const handleExportarCpfsMultiNumero = async () => {
+        setExporting(true)
+        try {
+            // Buscar TODOS os clientes que tem telefone
+            let allClientes: any[] = []
+            let from = 0
+            const batchSize = 1000
+            while (true) {
+                let query = supabase.from('clientes').select('cpf, telefone').not('telefone', 'is', null)
+                if (selectedBankId) query = query.eq('banco_principal_id', selectedBankId)
+                const { data } = await query.range(from, from + batchSize - 1)
+                if (!data || data.length === 0) break
+                allClientes = [...allClientes, ...data]
+                if (data.length < batchSize) break
+                from += batchSize
+            }
+
+            // Filtrar apenas os que têm mais de 1 número
+            const multiNumero = allClientes.filter(c => {
+                if (!c.telefone || !c.cpf) return false
+                const nums = c.telefone.replace(/[✅❌☎️📞]/g, '').split(',').map((t: string) => t.trim()).filter(Boolean)
+                return nums.length > 1
+            })
+
+            if (multiNumero.length === 0) {
+                alert('Nenhum CPF com mais de 1 número encontrado.')
+                setExporting(false)
+                return
+            }
+
+            // Gerar arquivo .txt com os CPFs
+            const conteudo = multiNumero.map(c => c.cpf.replace(/\D/g, '')).join('\n')
+            const blob = new Blob([conteudo], { type: 'text/plain' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `cpfs_multi_numero_${new Date().toISOString().slice(0, 10)}.txt`
+            a.click()
+            URL.revokeObjectURL(url)
+            alert(`✅ Exportados ${multiNumero.length} CPFs com mais de 1 número.`)
+        } catch (err) {
+            console.error(err)
+            alert('Erro ao exportar.')
+        }
+        setExporting(false)
+    }
+
     const renderTelefones = (telString: string) => {
         if (!telString) return <span className="text-gray-700 italic text-xs">Sem telefone</span>
         const parts = telString.split(',').map(p => p.trim())
@@ -151,7 +199,10 @@ export default function LeadsPage() {
                     </h1>
                     <p className="text-gray-600 text-sm mt-1 font-medium italic">Gerenciamento centralizado de base de dados</p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                    <button onClick={handleExportarCpfsMultiNumero} disabled={exporting} className="px-5 py-2.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded-xl text-xs font-black uppercase tracking-widest border border-cyan-500/20 flex items-center gap-2 transition-all disabled:opacity-50">
+                        <Download size={14} className={exporting ? 'animate-bounce' : ''} /> {exporting ? 'Exportando...' : 'Exportar CPFs +1 Nº'}
+                    </button>
                     <button onClick={handleLimparChecks} disabled={clearingCheck} className="px-5 py-2.5 glass rounded-xl text-xs font-black uppercase tracking-widest text-purple-400 hover:bg-purple-500/10 transition-all border-purple-500/10 flex items-center gap-2">
                         <RefreshCw size={14} className={clearingCheck ? 'animate-spin' : ''} /> Limpar Checks
                     </button>
