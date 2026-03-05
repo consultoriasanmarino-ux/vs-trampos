@@ -189,7 +189,7 @@ export default function AdminDashboard() {
 
             let query = supabase.from('clientes')
                 .select('id, cpf, nome, telefone')
-                .or('nome.is.null,nome.eq.,telefone.is.null,telefone.eq.')
+                .or('nome.is.null,nome.eq.,telefone.is.null,telefone.eq.,estado.is.null,estado.eq.,cidade.is.null,cidade.eq.,score.is.null,renda.is.null')
                 .limit(2000)
 
             if (selectedBankId) query = query.eq('banco_principal_id', selectedBankId)
@@ -327,16 +327,12 @@ export default function AdminDashboard() {
             shouldStopEnrich.current = false
             setLogs([])
 
-            // Busca leads que já existem mas faltam estado ou cidade
-            let query = supabase.from('clientes')
-                .select('id, cpf, nome, telefone')
+            // Busca leads que estão incompletos de forma abrangente
+            const { data: leadsIncompletos, error: queryError } = await supabase.from('clientes')
+                .select('id, cpf, nome, telefone, estado, cidade')
                 .not('cpf', 'is', null)
-                .or('estado.is.null,estado.eq.,cidade.is.null,cidade.eq.')
+                .or('nome.is.null,nome.eq.,telefone.is.null,telefone.eq.,estado.is.null,estado.eq.,cidade.is.null,cidade.eq.,score.is.null,renda.is.null')
                 .limit(2000)
-
-            if (selectedBankId) query = query.eq('banco_principal_id', selectedBankId)
-
-            const { data: leadsIncompletos, error: queryError } = await query
 
             if (queryError) {
                 alert('Erro ao buscar leads: ' + queryError.message)

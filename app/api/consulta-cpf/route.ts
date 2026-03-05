@@ -69,23 +69,44 @@ export async function POST(request: NextRequest) {
                             if (rendaNum) novosDados.renda = rendaNum
                             if (scoreVal) novosDados.score = Number(scoreVal)
 
-                            // Estado, Cidade e Endereço
-                            const endereco = result?.Endereco || result?.endereco || basicos?.endereco || basicos?.Endereco || {}
-                            const estado = endereco.uf || endereco.UF || endereco.estado || basicos?.uf || basicos?.UF || null
-                            const cidade = endereco.cidade || endereco.Cidade || endereco.municipio || basicos?.cidade || null
-                            const enderecoCompleto = endereco.logradouro || endereco.Logradouro || endereco.endereco || null
+                            // Tentativa robusta de capturar localização
+                            const resEnd = result?.Endereco || result?.endereco || basicos?.endereco || basicos?.Endereco || {}
+                            const resBas = basicos || {}
 
-                            if (estado) novosDados.estado = String(estado).toUpperCase().trim()
+                            // Estado (UF)
+                            const estado = resEnd.uf || resEnd.UF || resEnd.estado || resEnd.Estado ||
+                                resBas.uf || resBas.UF || resBas.estado || resBas.Estado ||
+                                result.uf || result.UF || null
+
+                            // Cidade
+                            const cidade = resEnd.cidade || resEnd.Cidade || resEnd.municipio || resEnd.Municipio ||
+                                resBas.cidade || resBas.Cidade || resBas.municipio ||
+                                result.cidade || result.municipio || null
+
+                            // Endereço / Logradouro
+                            const logradouro = resEnd.logradouro || resEnd.Logradouro || resEnd.endereco || resEnd.Endereco ||
+                                resBas.endereco || resBas.logradouro || null
+
+                            if (estado) novosDados.estado = String(estado).toUpperCase().trim().substring(0, 2)
                             if (cidade) novosDados.cidade = String(cidade).trim()
-                            if (enderecoCompleto) novosDados.endereco = String(enderecoCompleto).trim()
+                            if (logradouro) novosDados.endereco = String(logradouro).trim()
+
+                            console.log(`[API] CPF ${cpfLimpo} -> Estado: ${novosDados.estado}, Cidade: ${novosDados.cidade}`)
 
                             // Telefones (se vier do enriquecimento e não tivermos ainda)
-                            if (telefonesRaw.length > 0) {
-                                const tels = telefonesRaw.map((t: any) => String(t.telefone || t).replace(/\D/g, '')).filter(Boolean)
+                            if (telefonesRaw && Array.isArray(telefonesRaw) && telefonesRaw.length > 0) {
+                                const tels = telefonesRaw.map((t: any) => {
+                                    const value = typeof t === 'object' ? (t.telefone || t.Telefone || t.numero || t.Numero || '') : t
+                                    return String(value).replace(/\D/g, '')
+                                }).filter(Boolean)
                                 if (tels.length > 0) novosDados.telefone = tels.join(', ')
                             }
                             sucessoGeral = true
+                        } else {
+                            console.log(`[API] CPF ${cpfLimpo} retornou status ${apiStatus}`)
                         }
+                    } else {
+                        console.log(`[API] Erro na resposta da API para ${cpfLimpo}: ${response.status}`)
                     }
                 }
 
