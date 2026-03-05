@@ -5,8 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import {
     Users, Search, Smartphone, Phone, AlertTriangle,
     RefreshCw, UserPlus, ChevronDown, Check, X,
-    UserCog, Zap, CreditCard, Clock, CheckCircle2, XCircle,
-    TrendingUp, UserCheck, Calendar, MapPin
+    Database, Filter, UserCheck, CheckCircle2, XCircle, CreditCard, Clock, UserCog, TrendingUp, DollarSign, Star, Calendar, MapPin, Zap
 } from 'lucide-react'
 import { supabase, Cliente, Ligador } from '@/lib/supabase'
 import { useBankTheme } from '@/lib/bank-theme'
@@ -27,7 +26,19 @@ function GerenteFichasContent() {
     const [pagina, setPagina] = useState(1)
     const [totalPaginas, setTotalPaginas] = useState(1)
     const [totalRegistros, setTotalRegistros] = useState(0)
-    const ITENS_POR_PAGINA = 24
+    const ITENS_POR_PAGINA = 50
+
+    const calcularIdade = (dataNasc: string | null) => {
+        if (!dataNasc) return null
+        const parts = dataNasc.match(/^(\d{4})-(\d{2})-(\d{2})/)
+        if (!parts) return null
+        const nascimento = new Date(parseInt(parts[1]), parseInt(parts[2]) - 1, parseInt(parts[3]))
+        const hoje = new Date()
+        let idade = hoje.getFullYear() - nascimento.getFullYear()
+        const m = hoje.getMonth() - nascimento.getMonth()
+        if (m < 0 || (m === 0 && hoje.getDate() < nascimento.getDate())) idade--
+        return idade
+    }
 
     // Ordenação e Filtros
     const [ordenacao, setOrdenacao] = useState('recentes')
@@ -303,6 +314,27 @@ function GerenteFichasContent() {
                                     {statusBadge(c.status_whatsapp, c.telefone)}
                                 </div>
 
+                                {/* Badges Idade / Estado / Cidade */}
+                                <div className="flex items-center gap-2 flex-wrap mb-6">
+                                    {calcularIdade(c.data_nascimento) && (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-500/10 text-cyan-400 text-[10px] font-black border border-cyan-500/10">
+                                            <Calendar size={10} />
+                                            {calcularIdade(c.data_nascimento)} anos
+                                        </span>
+                                    )}
+                                    {c.estado && (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-500/10 text-violet-400 text-[10px] font-black border border-violet-500/10">
+                                            <MapPin size={10} />
+                                            {c.estado}
+                                        </span>
+                                    )}
+                                    {c.cidade && (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 text-gray-400 text-[10px] font-bold border border-white/5">
+                                            {c.cidade}
+                                        </span>
+                                    )}
+                                </div>
+
                                 <div className="grid grid-cols-2 gap-3 mb-6">
                                     <div className="bg-white/[0.02] rounded-2xl p-3 border border-white/5">
                                         <p className="text-[8px] font-black text-gray-600 uppercase tracking-widest mb-1">Score</p>
@@ -422,6 +454,8 @@ function GerenteFichasContent() {
                             <thead>
                                 <tr className="border-b border-white/5 bg-white/[0.01]">
                                     <th className="p-5 text-left text-[10px] font-black text-gray-600 uppercase tracking-widest">Nome / CPF</th>
+                                    <th className="p-5 text-left text-[10px] font-black text-gray-600 uppercase tracking-widest">Idade</th>
+                                    <th className="p-5 text-left text-[10px] font-black text-gray-600 uppercase tracking-widest">Localização</th>
                                     <th className="p-5 text-left text-[10px] font-black text-gray-600 uppercase tracking-widest">Telefone Principal</th>
                                     <th className="p-5 text-left text-[10px] font-black text-gray-600 uppercase tracking-widest">Ligador Atribuído</th>
                                     <th className="p-5 text-left text-[10px] font-black text-gray-600 uppercase tracking-widest">Banco</th>
@@ -438,6 +472,17 @@ function GerenteFichasContent() {
                                                 <div className="flex flex-col">
                                                     <span className="text-sm font-black text-white">{f.nome || 'Sem Nome'}</span>
                                                     <span className="text-[10px] font-mono font-bold text-gray-600">{f.cpf}</span>
+                                                </div>
+                                            </td>
+                                            <td className="p-5 whitespace-nowrap">
+                                                {calcularIdade(f.data_nascimento) ? (
+                                                    <span className="text-xs font-bold text-cyan-400">{calcularIdade(f.data_nascimento)} anos</span>
+                                                ) : '—'}
+                                            </td>
+                                            <td className="p-5">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] font-black text-violet-400 capitalize">{f.estado ? `Estado: ${f.estado}` : ''}</span>
+                                                    <span className="text-xs font-bold text-gray-400">{f.cidade || '—'}</span>
                                                 </div>
                                             </td>
                                             <td className="p-5">
