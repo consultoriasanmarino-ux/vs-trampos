@@ -69,33 +69,49 @@ export async function POST(request: NextRequest) {
                             if (rendaNum) novosDados.renda = rendaNum
                             if (scoreVal) novosDados.score = Number(scoreVal)
 
-                            // Tentativa robusta de capturar localização
-                            const resEnd = result?.Endereco || result?.endereco || basicos?.endereco || basicos?.Endereco || {}
-                            const resBas = basicos || {}
+                            // 🔎 EXTRAÇÃO ULTRA-ROBUSTA DE LOCALIZAÇÃO
+                            let estado = null
+                            let cidade = null
+                            let logradouro = null
 
-                            // Estado (UF)
-                            const estado = resEnd.uf || resEnd.UF || resEnd.estado || resEnd.Estado ||
-                                resBas.uf || resBas.UF || resBas.estado || resBas.Estado ||
+                            // 1. Tentar pegar de objetos "Endereco" (singular)
+                            const objEnd = result?.Endereco || result?.endereco || result?.DadosBasicos?.endereco || result?.DadosBasicos?.Endereco || {}
+
+                            // 2. Tentar pegar de listas "Enderecos" (plural - MUITO COMUM)
+                            const listaEnd = result?.Enderecos || result?.enderecos || result?.DadosBasicos?.enderecos || []
+                            const firstEnd = (Array.isArray(listaEnd) && listaEnd.length > 0) ? listaEnd[0] : {}
+
+                            // 3. Tentar pegar de "DadosBasicos" diretamente
+                            const bas = result?.DadosBasicos || result?.dadosBasicos || {}
+
+                            // --- BUSCA PELO ESTADO (UF) ---
+                            estado = firstEnd.uf || firstEnd.UF || firstEnd.estado ||
+                                objEnd.uf || objEnd.UF || objEnd.estado ||
+                                bas.uf || bas.UF || bas.estado || bas.naturalidade_uf ||
                                 result.uf || result.UF || null
 
-                            // Cidade
-                            const cidade = resEnd.cidade || resEnd.Cidade || resEnd.municipio || resEnd.Municipio ||
-                                resBas.cidade || resBas.Cidade || resBas.municipio ||
+                            // --- BUSCA PELA CIDADE ---
+                            cidade = firstEnd.cidade || firstEnd.Cidade || firstEnd.municipio || firstEnd.Municipio ||
+                                objEnd.cidade || objEnd.Cidade || objEnd.municipio ||
+                                bas.cidade || bas.Cidade || bas.municipio || bas.naturalidade_municipio ||
                                 result.cidade || result.municipio || null
 
-                            // Endereço / Logradouro
-                            const logradouro = resEnd.logradouro || resEnd.Logradouro || resEnd.endereco || resEnd.Endereco ||
-                                resBas.endereco || resBas.logradouro || null
+                            // --- BUSCA PELO LOGRADOURO ---
+                            logradouro = firstEnd.logradouro || firstEnd.Logradouro || firstEnd.endereco ||
+                                objEnd.logradouro || objEnd.Logradouro || objEnd.endereco ||
+                                bas.endereco || bas.logradouro || null
 
                             if (estado) novosDados.estado = String(estado).toUpperCase().trim().substring(0, 2)
                             if (cidade) novosDados.cidade = String(cidade).trim()
                             if (logradouro) novosDados.endereco = String(logradouro).trim()
 
-                            console.log(`[API] CPF ${cpfLimpo} -> Estado: ${novosDados.estado}, Cidade: ${novosDados.cidade}`)
+                            console.log(`[API] CPF ${cpfLimpo} Extraído -> UF: ${novosDados.estado}, CID: ${novosDados.cidade}`)
 
-                            // Telefones (se vier do enriquecimento e não tivermos ainda)
-                            if (telefonesRaw && Array.isArray(telefonesRaw) && telefonesRaw.length > 0) {
-                                const tels = telefonesRaw.map((t: any) => {
+                            // Telefones
+                            const tRaw = result?.telefones || result?.Telefones || result?.Telefone || []
+                            if (tRaw && (Array.isArray(tRaw) || typeof tRaw === 'string')) {
+                                const rawArray = Array.isArray(tRaw) ? tRaw : [tRaw]
+                                const tels = rawArray.map((t: any) => {
                                     const value = typeof t === 'object' ? (t.telefone || t.Telefone || t.numero || t.Numero || '') : t
                                     return String(value).replace(/\D/g, '')
                                 }).filter(Boolean)
